@@ -1,0 +1,1581 @@
+#!/usr/bin/python
+# -*- encoding: utf-8 -*-
+
+"""
+opendkim-manage - DKIM managment tool for LDAP
+
+Copyright (c) 2018 by R.N.S.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+"""
+
+from __future__ import print_function
+
+import argparse
+import ConfigParser
+import datetime
+import hashlib
+import os
+import random
+import re
+import string
+import sys
+import traceback
+
+from operator import itemgetter
+
+import dns.resolver
+import ldap
+import ldap.modlist as modlist
+import ldap.sasl
+import ldapurl
+
+from M2Crypto import RSA, BIO
+
+__author__ = "Christian Rößner"
+__copyright__ = "Copyright (c) 2018 by R.N.S."
+__credits__ = ["Andreas Schulze", "Patrick Ben Koetter"]
+__license__ = "GPL"
+__version__ = "0.1"
+__maintainer__ = "Christian Rößner"
+__email__ = "c@roessner.co"
+__status__ = "Development"
+
+NAME = "opendkim-manage"
+
+DEBUG = True
+INTERACT = False
+
+
+class GlobalCfg(object):
+    """Global configuration options
+    """
+    delete_not_before = 365
+    expire_after = 6
+
+
+class CfgFile(object):
+    """Config file parser
+
+    :param cfgfile: Parse a configuration file
+    """
+    def __init__(self, cfgfile):
+        self.__config = ConfigParser.ConfigParser()
+
+        self.globals = dict()
+        self.ldap = dict()
+
+        # All known sections
+        sections = (
+            "global", "ldap"
+        )
+
+        # All known options
+        global_opts = (
+            "delete_not_before", "expire_after", "selectorformat",
+            "use_dkim_identity"
+        )
+        ldap_opts = (
+            "uri", "bindmethod", "saslmech", "filter", "domain",
+            "usetls", "reqcert", "ciphers", "cert", "key", "ca",
+            "basedn", "authz_id", "binddn", "bindpw"
+        )
+
+        success = self.__config.read(cfgfile)
+        if len(success) == 0:
+            print("Error: Config file '{0}' can not be read".format(cfgfile),
+                  file=sys.stderr)
+            sys.exit(os.EX_OSERR)
+
+        for sec in iter(self.__config.sections()):
+            if sec not in sections:
+                print("Error: Unknown section '{0}'".format(sec),
+                      file=sys.stderr)
+                sys.exit(os.EX_SOFTWARE)
+
+        if not self.__config.has_section("global"):
+            print("Error: Missing requried section 'global'", file=sys.stderr)
+            sys.exit(os.EX_SOFTWARE)
+        if not self.__config.has_section("ldap"):
+            print("Error: Missing requried section 'ldap'", file=sys.stderr)
+            sys.exit(os.EX_SOFTWARE)
+
+        # Parse global options
+        for opt in iter(global_opts):
+            self.globals[opt] = None
+        s = "global"
+        for opt in iter(self.__config.options("global")):
+            if opt not in global_opts:
+                print("Error: Unknown option '{0}' in section 'global'".format(
+                    opt), file=sys.stderr)
+                sys.exit(os.EX_SOFTWARE)
+            if opt == "delete_not_before" or opt == "expire_after":
+                try:
+                    self.globals[opt] = self.__config.getint(s, opt)
+                except ValueError:
+                    pass
+            elif opt == "use_dkim_identity":
+                try:
+                    self.globals[opt] = self.__config.getboolean(s, opt)
+                except ValueError:
+                    pass
+            else:
+                self.globals[opt] = self.__config.get(s, opt)
+
+        # Parse LDAP options
+        for opt in iter(ldap_opts):
+            self.ldap[opt] = None
+        s = "ldap"
+        for opt in iter(self.__config.options("ldap")):
+            if opt not in ldap_opts:
+                print("Error: Unknown option '{0}' in section 'ldap'".format(
+                    opt), file=sys.stderr)
+                sys.exit(os.EX_SOFTWARE)
+            if opt == "usetls":
+                try:
+                    self.ldap[opt] = self.__config.getboolean(s, opt)
+                except ValueError:
+                    self.ldap[opt] = False
+            else:
+                self.ldap[opt] = self.__config.get(s, opt)
+
+
+class Cmd(object):
+    """Command line parser
+    """
+    def __init__(self):
+        global INTERACT, DEBUG
+
+        parser = argparse.ArgumentParser(prog=NAME)
+
+        parser.add_argument("--list", "-l",
+                            default=False,
+                            action="store_true",
+                            help="List DKIM keys")
+        parser.add_argument("--create", "-c",
+                            default=False,
+                            action="store_true",
+                            help="Create a new DKIM key")
+        parser.add_argument("--delete", "-d",
+                            default=False,
+                            action="store_true",
+                            help="Delete one or many DKIM keys")
+        parser.add_argument("--active",
+                            default=False,
+                            action="store_true",
+                            help="Set DKIMActive to TRUE for a selector")
+
+        parser.add_argument("--age", "-A",
+                            default=None,
+                            type=int,
+                            help="The key has to be more(+) or less (-) then n "
+                                 "days old")
+        parser.add_argument("--domain", "-D",
+                            default=None,
+                            action="append",
+                            type=str,
+                            help="A DNS domain name")
+        # Currently not reimplemented
+        """
+        parser.add_argument("--nosubdomain",
+                            default=False,
+                            action="store_true",
+                            help="Don't match subdomains")
+        """
+        parser.add_argument("--selectorname", "-s",
+                            default=None,
+                            action="append",
+                            type=str,
+                            help="A selector name")
+        parser.add_argument("--size", "-S",
+                            default=2048,
+                            type=int,
+                            help="Size of DKIM keys (default: %(default)s)")
+        parser.add_argument("--testkey", "-t",
+                            default=False,
+                            action="store_true",
+                            help="Check that the listed DKIM keys are "
+                                 "published and useable")
+
+        parser.add_argument("--config", "-f",
+                            default="/etc/opendkim-manage.cfg",
+                            type=str,
+                            help="Path to '{0}' config file. ".format(NAME) +
+                                 "(default: '%(default)s'")
+        parser.add_argument("--add-missing", "-m",
+                            default=False,
+                            action="store_true",
+                            help="Add missing DKIM keys to LDAP objects")
+        parser.add_argument("--add-new", "-n",
+                            default=False,
+                            action="store_true",
+                            help="Check age for DKIM keys and create new keys "
+                                 "on demand")
+        parser.add_argument("--rotate", "-r",
+                            default=False,
+                            action="store_true",
+                            help="Rotate one or all DKIM keys")
+        parser.add_argument("--auto", "-a",
+                            default=False,
+                            action="store_true",
+                            help="Short for --add-missing, --add-new, --rotate "
+                                 "and --delete")
+        parser.add_argument("--delete-not-before", "-b",
+                            default=None,
+                            type=int,
+                            help="Minimum number of days for a DKIM key before "
+                                 "it can be deleted from LDAP (default: 6 "
+                                 "days)")
+        parser.add_argument("--expire-after", "-e",
+                            default=None,
+                            type=int,
+                            help="Number of days after which new DKIM keys "
+                                 "will be created with --add-new  "
+                                 "(default: 365 days)")
+
+        parser.add_argument("--interactive", "-i",
+                            default=False,
+                            action="store_true",
+                            help="Turn on interactive mode")
+
+        parser.add_argument("--debug",
+                            default=False,
+                            action="store_true",
+                            help="Turn on debugging")
+        parser.add_argument("--version", "-V",
+                            default=False,
+                            action="store_true",
+                            help="Print version and exit")
+
+        self.config = parser.parse_args()
+
+        # Some options require the '--domain' option being set
+        if self.config.create:
+            if not self.config.domain:
+                print("Error: Option '--domain' is required", file=sys.stderr)
+                sys.exit(os.EX_USAGE)
+
+        # Some options require the '--selectorname' option being set
+        if (self.config.testkey or
+            self.config.delete or
+            self.config.age or
+            self.config.active) \
+                and not self.config.selectorname:
+            print("Error: Option '--selectorname' is required", file=sys.stderr)
+            sys.exit(os.EX_USAGE)
+
+        # Make sure, we do not use these command on a per-domain or
+        # per-selector basis
+        if (self.config.add_missing or self.config.add_new or
+            self.config.rotate or self.config.auto) and \
+                (self.config.domain or self.config.selectorname):
+            print("Error: Option '--domain' and/or '--selectorname' not "
+                  "allowed", file=sys.stderr)
+            sys.exit(os.EX_USAGE)
+
+        # Binary fields
+        cmd_cleared = 0
+        bit_mask = dict(m=1)
+
+        # Bit shifter helper function
+        def shift(x):
+            x['m'] <<= 1
+            return x['m']
+
+        cmd_list = bit_mask['m']
+        cmd_create = shift(bit_mask)
+        cmd_delete = shift(bit_mask)
+        cmd_rotate = shift(bit_mask)
+        cmd_addmissing = shift(bit_mask)
+        cmd_addnew = shift(bit_mask)
+        cmd_auto = shift(bit_mask)
+
+        # Only run one command at a time
+        flags = cmd_cleared
+        if self.config.list:
+            flags |= cmd_list
+        if self.config.create:
+            flags |= cmd_create
+        if self.config.delete:
+            flags |= cmd_delete
+        if self.config.rotate:
+            flags |= cmd_rotate
+        if self.config.add_missing:
+            flags |= cmd_addmissing
+        if self.config.add_new:
+            flags |= cmd_addnew
+        if self.config.auto:
+            flags |= cmd_auto
+        if flags != cmd_cleared:
+            if flags != cmd_list and \
+                    flags != cmd_create and \
+                    flags != cmd_delete and \
+                    flags != cmd_rotate and \
+                    flags != cmd_addmissing and \
+                    flags != cmd_addnew and \
+                    flags != cmd_auto:
+                print("Error: Only one command at a time is allowed",
+                      file=sys.stderr)
+                sys.exit(os.EX_USAGE)
+
+        DEBUG = self.config.debug
+        INTERACT = self.config.interactive
+
+
+class LDAP(object):
+    """LDAP connection class
+    """
+    def __init__(self, ldapcfg):
+        """
+        :param ldapcfg: Dictionary that contains LDAP settings
+        :var self.__ldapcfg: Configuration data structure for LDAP
+        :var self.__uriparts: Contains split LDAP uri parts
+        :var self.__tls: Flag that indicates TLS usage
+        :var self.__sasl: Flag that indicates SASL usage
+        :var self.__auth_token: If SASL is defined, store an auth token
+        :var self.__con: LDAP connection handle
+        :var self.configured: If the connection is initialized this flag is true
+        :var self.__connected: If a LDAP connection exists this flag is true
+        """
+        self.__ldapcfg = ldapcfg
+        self.__urlparts = None
+        self.__tls = False
+        self.__sasl = False
+        self.__auth_token = None
+        self.__con = None
+
+        self.configured = False
+        self.connected = False
+
+    def initialize(self):
+        """Initialze an LDAP object
+        """
+        if not (self.__ldapcfg['uri'] and self.__ldapcfg['filter'] and
+                self.__ldapcfg['domain']):
+            print("Error: One of 'uri', 'filter' or 'domain' is missing in "
+                  "config file", file=sys.stderr)
+        if not ldapurl.isLDAPUrl(self.__ldapcfg['uri']):
+            print("Error: Invalid LDAP URI specified")
+            sys.exit(os.EX_SOFTWARE)
+        self.__urlparts = ldapurl.LDAPUrl(self.__ldapcfg['uri'])
+
+        if self.__ldapcfg['usetls']:
+            reqcert = None
+            if self.__ldapcfg['reqcert']:
+                if self.__ldapcfg['reqcert'] == "never":
+                    reqcert = ldap.OPT_X_TLS_NEVER
+                    dbg("LDAP: reqcert=NEVER")
+                elif self.__ldapcfg['reqcert'] == "allow":
+                    reqcert = ldap.OPT_X_TLS_ALLOW
+                    dbg("LDAP: reqcert=ALLOW")
+                elif self.__ldapcfg['reqcert'] == "try":
+                    reqcert = ldap.OPT_X_TLS_TRY
+                    dbg("LDAP: reqcert=TRY")
+                elif self.__ldapcfg['reqcert'] == "demand":
+                    reqcert = ldap.OPT_X_TLS_DEMAND
+                    dbg("LDAP: reqcert=DEMAND")
+                else:
+                    print("Error: Unsupport 'reqcert' argument",
+                          file=sys.stderr)
+                    sys.exit(os.EX_SOFTWARE)
+
+            ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, reqcert)
+            if self.__ldapcfg['ciphers']:
+                ldap.set_option(
+                    ldap.OPT_X_TLS_CIPHER_SUITE, self.__ldapcfg['ciphers'])
+                dbg("LDAP: set ciphers")
+
+            if self.__ldapcfg['cert']:
+                if not os.path.exists(self.__ldapcfg['cert']):
+                    print("Error: Can not read LDAP TLS cert file",
+                          file=sys.stderr)
+                    sys.exit(os.EX_SOFTWARE)
+                ldap.set_option(
+                    ldap.OPT_X_TLS_CERTFILE, self.__ldapcfg['cert'])
+                dbg("LDAP: Set cert to {0}".format(self.__ldapcfg['cert']))
+            if self.__ldapcfg['key']:
+                if not os.path.exists(self.__ldapcfg['key']):
+                    print("Error: Can not read LDAP TLS key file",
+                          file=sys.stderr)
+                    sys.exit(os.EX_SOFTWARE)
+                ldap.set_option(
+                    ldap.OPT_X_TLS_KEYFILE, self.__ldapcfg['key'])
+                dbg("LDAP: Set key to {0}".format(self.__ldapcfg['key']))
+            if self.__ldapcfg['ca']:
+                if not os.path.exists(self.__ldapcfg['ca']):
+                    print("Error: Can not read LDAP TLS CA file",
+                          file=sys.stderr)
+                    sys.exit(os.EX_SOFTWARE)
+                ldap.set_option(
+                    ldap.OPT_X_TLS_CACERTFILE, self.__ldapcfg['ca'])
+                dbg("LDAP: Set ca to {0}".format(self.__ldapcfg['ca']))
+
+            dbg("LDAP: TLS enabled")
+            self.__tls = True
+
+            if self.__ldapcfg['bindmethod'] == "sasl":
+                if self.__ldapcfg['saslmech']:
+                    if self.__ldapcfg['binddn'] and self.__ldapcfg['bindpw']:
+                        if self.__ldapcfg['saslmech'].lower() == "digest-md5":
+                            self.__auth_token = ldap.sasl.digest_md5(
+                                self.__ldapcfg['binddn'],
+                                self.__ldapcfg['bindpw']
+                            )
+                            dbg("LDAP: SASL/DIGEST-MD5")
+                        elif self.__ldapcfg['saslmech'].lower() == "cram-md5":
+                            self.__auth_token = ldap.sasl.cram_md5(
+                                self.__ldapcfg['binddn'],
+                                self.__ldapcfg['bindpw']
+                            )
+                            dbg("LDAP: SASL/CRAM-MD5")
+                    if self.__ldapcfg['authz_id']:
+                        if self.__ldapcfg['saslmech'].lower() == "external":
+                            self.__auth_token = ldap.sasl.external(
+                                self.__ldapcfg['authz_id'])
+                            dbg("LDAP: SASL/EXTERNAL")
+                        elif self.__ldapcfg['saslmech'].lower() == "gssapi":
+                            self.__auth_token = ldap.sasl.gssapi(
+                                self.__ldapcfg['authz_id'])
+                            dbg("LDAP: SASL/GSSAPI")
+
+                    dbg("LDAP: SASL enabled")
+                    self.__sasl = True
+
+        self.configured = True
+
+    def connect(self):
+        """Connect to a LDAP server
+        """
+        con_string = "{0}://{1}".format(
+            self.__urlparts.urlscheme, self.__urlparts.hostport)
+        try:
+            self.__con = ldap.initialize(con_string)
+            dbg("LDAP: connected to {0}".format(con_string))
+            if self.__tls:
+                self.__con.start_tls_s()
+                dbg("LDAP: STARTTLS")
+            if self.__sasl:
+                self.__con.sasl_interactive_bind_s("", self.__auth_token)
+                dbg("LDAP: SASL AUTH")
+            else:
+                if self.__ldapcfg['binddn'] and self.__ldapcfg['bindpw']:
+                    self.__con.simple_bind_s(
+                        self.__ldapcfg['binddn'], self.__ldapcfg['bindpw'])
+                    dbg("LDAP: Simple bind")
+                else:
+                    self.__con = None
+                    return  # Treat this as being not connected!
+        except Exception:
+            print("Error: Can not connect to LDAP server", file=sys.stderr)
+            sys.exit(os.EX_SOFTWARE)
+
+        self.connected = True
+
+    def search(self, domain=None, search_filter=None, base=None):
+        """Common LDAP search
+
+        :param domain: Searches the default filter for this domain
+        :param search_filter: Custom search filter for LDAP
+        :param base: Custom LDAP search base with sub scope
+        :return: Return a result list
+        """
+        if not self.configured:
+            self.initialize()
+        if self.configured:
+            if not self.connected:
+                self.connect()
+            if self.connected and self.__con:
+                if not search_filter:
+                    if not domain:
+                        domain = '*'
+                    search_filter = self.__ldapcfg['filter'] % domain
+                if not base:
+                    base = self.__urlparts.dn
+                dbg("LDAP: filter={0}".format(search_filter))
+                rid = self.__con.search(base,
+                                        self.__urlparts.scope,
+                                        search_filter,
+                                        [self.__ldapcfg['domain'],
+                                         'DKIMSelector',
+                                         'DKIMActive',
+                                         'CreateTimestamp'])
+                raw_result = self.__con.result(rid, True, 60)
+                dbg("LDAP: raw_result={0}".format(raw_result))
+                if raw_result[0] is None:
+                    self.__con.abandon(rid)
+                    print("WARN: LDAP search timed out")
+                    return self._result()
+                list_of_results = raw_result[1]
+                dbg("LDAP: list_of_result={0}".format(list_of_results))
+                return list_of_results
+            else:
+                return None
+
+        return None
+
+    def store_dkim_key(self, dn, pem_key, domain, identity=None):
+        """Store a new RSA PEM formated key in LDAP
+
+        :param dn: The DN for the newly created LDAP object
+        :param pem_key: PEM formated RSA key
+        :param domain: The domain name of the DKIM object
+        :param identity: Optional string for DKIMidentity
+        """
+        if identity:
+            assert isinstance(identity, str)
+
+        attrs = dict()
+        attrs['objectclass'] = ["top", "DKIM"]
+        # attrs['DKIMSelector'] = selector
+        attrs['DKIMKey'] = pem_key
+        attrs['DKIMActive'] = "FALSE"
+        attrs['DKIMDomain'] = domain
+        if identity:
+            attrs['DKIMIdentity'] = identity
+
+        ldif = modlist.addModlist(attrs)
+        dbg("LDAP: ldif={0}".format(ldif))
+
+        if not self.configured:
+            self.initialize()
+        if self.configured:
+            if not self.connected:
+                self.connect()
+            if self.connected and self.__con:
+                self.__con.add_s(dn, ldif)
+
+    def delete_dkim_key(self, dn):
+        """Delete a LDAP object
+
+        :param dn: The DN of the LDAP object that is to be deleted
+        """
+        if not self.configured:
+            self.initialize()
+        if self.configured:
+            if not self.connected:
+                self.connect()
+            if self.connected and self.__con:
+                self.__con.delete_s(dn)
+
+    def unset_active(self, dn):
+        """Set current DKIM object inactive
+
+        :param dn: DN of the LDAP object for which the attribute is deleted
+        """
+        if not self.configured:
+            self.initialize()
+        if self.configured:
+            if not self.connected:
+                self.connect()
+            if self.connected and self.__con:
+                self.__con.modify_s(
+                    dn, [(ldap.MOD_DELETE, "DKIMActive", "TRUE")])
+
+    def set_active(self, dn):
+        """Set current DKIM object active
+
+        :param dn: DN of the LDPA object for which the attribute is added
+        """
+        if not self.configured:
+            self.initialize()
+        if self.configured:
+            if not self.connected:
+                self.connect()
+            if self.connected and self.__con:
+                self.__con.modify_s(
+                    dn, [(ldap.MOD_ADD, "DKIMActive", "FALSE")])
+
+
+class NoSelectornameError(Exception):
+    """Exception that is raised, if a selector name does not exist
+    """
+    pass
+
+
+class SelectorParseError(IndexError):
+    """Exception that is raised, if the selector format can not be parsed
+    """
+    pass
+
+
+class Selector(object):
+    """Generate a selector from config file param 'selectorname'
+
+    :param __pattern: Private class pattern that matches variables in the
+    'selectorformat' string
+    :param __prog: Regular expression compiled object
+    :param name: Property fget function that returns the computed name for
+    the 'selectorformat' string
+    """
+    def __init__(self, cfgarg):
+        """
+        :param cfgarg: Value for the 'selectorformat' string from config file
+        :var self.__cfgarg: Stores the selector format string
+        :var self.__name: Computed selector name
+        """
+        self.__cfgarg = cfgarg
+        self.__name = None
+
+    def get_name(self):
+        """Property helper method
+
+        :return: The computed selector name from the format string
+        """
+        if self.__name is None:
+            raise NoSelectornameError()
+        return self.__name
+
+    def parse(self):
+        """Parse the selector format and store the result in the 'name'
+        attribute
+        """
+        self.__name = self.__prog.sub(self.__repl, self.__cfgarg)
+
+    @staticmethod
+    def __repl(matchobj):
+        """Replaces format string pattern defined in 'selectorformat'
+
+        :param matchobj: regular expression match object
+        :return: Replacement for found groups
+        """
+        if matchobj.group(1):
+            dbg("group(1): {0}".format(matchobj.group(1)))
+            key = matchobj.group(1)
+            length = 0
+
+            if matchobj.group(2):
+                dbg("group(2): {0}".format(matchobj.group(2)))
+                length = int(matchobj.group(2)[1:])
+
+            repl = ""
+            if key.lower() == "randomhex":
+                lst = [random.choice(
+                    string.ascii_letters + string.digits) for _ in xrange(128)]
+                rand = "".join(lst)
+
+                if length == 0:
+                    raise SelectorParseError()
+
+                repl = hashlib.sha256(rand).hexdigest()[:length].upper()
+
+            elif key.lower() == "year":
+                repl = str(datetime.datetime.now().year)
+            elif key.lower() == "month":
+                repl = "{0:02d}".format(datetime.datetime.now().month)
+            elif key.lower() == "day":
+                repl = "{0:02d}".format(datetime.datetime.now().day)
+
+            return repl
+        else:
+            return matchobj.group(0)
+
+    # We allow random hex between 1 and 20 chars
+    __pattern = r"\$\{(\w+)(:[0-9]+)?\}"
+    __prog = re.compile(__pattern, flags=re.UNICODE | re.IGNORECASE)
+
+    name = property(fget=get_name)
+
+
+class Manager(object):
+    """Main class that handles all features of opendkim-manage
+    """
+    def __init__(self, cf, cmd):
+        """
+        :param cf: Config file object from a Cfg() call
+        :param cmd: Command line object from a Cmd() call
+        :var self.__cf: Stores the config file settings
+        :var self.__cmd: Stores the command line parameters
+        :var self.__ldap: Holds an LDAP object
+        """
+        self.__cf = cf
+        self.__cmd = cmd
+        self.__ldap = LDAP(cf.ldap)
+
+    def cmd_list(self):
+        """--list command
+
+        Scan one or all domains and display the DKIMSelector attributes. If
+        the object contains a DKIMActive attribute set to TRUE, mark the
+        output as active.
+        """
+        cf = self.__cf
+        cmd = self.__cmd
+        lh = self.__ldap
+
+        if cmd.config.domain and len(cmd.config.domain) > 0:
+            # TODO: If we implement --nosubdomain, we need to modify this list
+            domains = cmd.config.domain
+        else:
+            domains = ['*']
+
+        for domain in iter(domains):
+            # Get DN for a domain as a new search base
+            list_of_results = lh.search(domain)
+            dbg("cmd.config.list: list_of_results={0}".format(list_of_results))
+            for ldap_object in iter(list_of_results):
+                dbg("cmd.config.list: ldap_object={0}".format(ldap_object))
+                dn = None
+                domainname = None
+                dkimselectors = list()
+
+                error = False
+
+                # ldap_object: (DN, result-dict)
+                try:
+                    dn = ldap_object[0]
+                    domainname = ldap_object[1][cf.ldap['domain']][0]
+                except KeyError:
+                    error = True
+
+                print("DNS domain '{0}':".format(domainname))
+                print("DN: {0}".format(dn))
+
+                if not error:
+                    # Retrieve all DKIMSelectors
+                    list_of_results2 = lh.search(
+                        search_filter="(objectClass=DKIM)", base=dn)
+                    for ldap_object2 in iter(list_of_results2):
+                        dbg("cmd.config.list: ldap_object2={0}".format(
+                            ldap_object2))
+                        try:
+                            dkimselectors = ldap_object2[1]['DKIMSelector']
+                        except KeyError:
+                            pass
+
+                        if 'DKIMActive' in ldap_object2[1] and \
+                                ldap_object2[1]['DKIMActive'][0] == "TRUE":
+                            status = " (active)"
+                        else:
+                            status = ""
+                        for dkimselector in iter(dkimselectors):
+                            print("- DKIMSelector: {0}{1}".format(
+                                dkimselector, status))
+
+    # noinspection PyPropertyAccess
+    def cmd_create(self, domainname=None):
+        """--create command
+
+        Either create a new LDAP object for DKIM manually, if a custom
+        selector was specified or use the 'selectorformat' string to compute
+        one on the fly.
+        """
+        if domainname:
+            assert isinstance(domainname, str)
+
+        cf = self.__cf
+        cmd = self.__cmd
+        lh = self.__ldap
+
+        if cmd.config.selectorname and not domainname:
+            if len(cmd.config.domain) > 1:
+                print("Error: Too many domains specified", file=sys.stderr)
+                sys.exit(os.EX_SOFTWARE)
+            if len(cmd.config.selectorname) > 1:
+                print("Error: Please specify only one 'selectorname'",
+                      file=sys.stderr)
+                sys.exit(os.EX_SOFTWARE)
+            selector = cmd.config.selectorname[0]
+
+            # Get DN suffix for the new selector object
+            list_of_results = lh.search(cmd.config.domain[0])
+            if len(list_of_results) == 0:
+                print("Error: Domain '{0}' does not exist".format(
+                    cmd.config.domain[0]), file=sys.stderr)
+                sys.exit(os.EX_SOFTWARE)
+            ldap_object = list_of_results[0]
+            dn = ldap_object[0]
+            dbg("cmd.config.create: dn={0}".format(dn))
+
+            # Make sure, we do not have an LDAP object already
+            list_of_results = lh.search(
+                search_filter="(&(objectClass=DKIM)(DKIMSelector={0}))".format(
+                    selector), base=dn)
+            if len(list_of_results) != 0:
+                print("Error: Object for selector '{0}' already exists".format(
+                    selector), file=sys.stderr)
+                sys.exit(os.EX_SOFTWARE)
+
+            # Generate RSA certificate
+            pem_key = self.generate_RSA_private_key(cmd.config.size)
+            if INTERACT:
+                print(pem_key)
+
+            if self.ask("Do you want to save the DKIM key in LDAP?"):
+                if cf.globals['use_dkim_identity']:
+                    identity = "@" + cmd.config.domain[0]
+                else:
+                    identity = None
+
+                dbg("Saving DKIM key to LDAP")
+                lh.store_dkim_key(
+                    "DKIMSelector={0},".format(selector) + dn, pem_key,
+                    cmd.config.domain[0], identity)
+
+        elif cf.globals['selectorformat']:
+            if domainname:
+                domains = [domainname]
+            else:
+                domains = cmd.config.domain
+
+            for domain in iter(domains):
+                dbg("cmd.config.create: domain={0}".format(domain))
+                list_of_results = lh.search(domain)
+                if len(list_of_results) == 0:
+                    print("Error: There do not exist any domains yet")
+                    sys.exit(os.EX_SOFTWARE)
+                for ldap_object in iter(list_of_results):
+                    dbg("cmd.config.create: ldap_object={0}".format(
+                        ldap_object))
+
+                    error = False
+
+                    dn = None
+                    domainname = None
+
+                    try:
+                        dn = ldap_object[0]
+                        domainname = ldap_object[1][cf.ldap['domain']][0]
+                    except KeyError:
+                        error = True
+
+                    print("DNS domain '{0}':".format(domainname))
+                    print("DN: {0}".format(dn))
+
+                    if not error:
+                        # Generate RSA certificate
+                        pem_key = self.generate_RSA_private_key(cmd.config.size)
+                        if INTERACT:
+                            print(pem_key)
+
+                        if self.ask(
+                                "Do you want to save the DKIM key in LDAP?"):
+                            if cf.globals['use_dkim_identity']:
+                                identity = "@" + domainname
+                            else:
+                                identity = None
+
+                            sel = Selector(cf.globals['selectorformat'])
+                            try:
+                                sel.parse()
+                            except SelectorParseError:
+                                print("Error: 'selectorformat' is invalid",
+                                      file=sys.stderr)
+                                sys.exit(os.EX_SOFTWARE)
+
+                            dbg("cmd.config.create: sel.name={0}".format(
+                                sel.name))
+                            selector = sel.name
+
+                            dbg("Saving DKIM key to LDAP")
+                            lh.store_dkim_key(
+                                "DKIMSelector={0},".format(selector) + dn,
+                                pem_key,
+                                domain,
+                                identity)
+
+        else:
+            print("WARN: No 'selectorformat' defined", file=sys.stderr)
+
+    def cmd_delete(self, selectorname=None):
+        """--delete command
+
+        Delete one or more DKIM objects from LDAP
+
+        :param selectorname: Optional selector to delete
+        """
+        cmd = self.__cmd
+
+        if selectorname:
+            assert isinstance(selectorname, str)
+            selectors = [selectorname]
+        else:
+            selectors = cmd.config.selectorname
+
+        lh = self.__ldap
+
+        for selector in iter(selectors):
+            list_of_results = lh.search(
+                search_filter="(&(objectClass=DKIM)(DKIMSelector={0}))".format(
+                    selector))
+            if len(list_of_results) == 0:
+                print("WARN: Selector '{0}' does not exist".format(selector),
+                      file=sys.stderr)
+                continue
+
+            ldap_object = list_of_results[0]
+            dbg("cmd.config.delete: ldap_object={0}".format(
+                ldap_object))
+
+            dn = ldap_object[0]
+            if "DKIMActive" in ldap_object[1] and \
+                    ldap_object[1]['DKIMActive'][0] == "TRUE":
+                print("WARN: Can not remove active DKIM key from LDAP",
+                      file=sys.stderr)
+                continue
+
+            print("DN: {0}".format(dn))
+
+            if self.ask("Do you really want to delete the DKIM key from LDAP?"):
+                lh.delete_dkim_key(dn)
+
+    def cmd_age(self, days=None, days_delta=None, selectorname=None):
+        """--age command
+
+        Compare the creation date of a DKM key with an amount of days.
+        A positive value will check, if the DKIM key in LDAP is older, a
+        negative value will check, if the DKIM key is older than a givven
+        number of days.
+
+        If no keyword was given, the amount of days is retrieved from the
+        command line.
+
+        :param days: The number of days for comparission
+        :param days_delta: A datetime.timedelta object for comparission
+        :param selectorname: A selectorname can either be given on command
+        line or is set elsewhere in the code
+        :return: Boolean. Depends on the days-sign.
+        """
+        if days:
+            assert isinstance(days, int)
+        if days_delta:
+            assert isinstance(days_delta, datetime.timedelta)
+        if selectorname:
+            assert isinstance(selectorname, str)
+
+        cmd = self.__cmd
+        lh = self.__ldap
+
+        if not selectorname:
+            if len(cmd.config.selectorname) > 1:
+                print("Error: Please specify only one 'selectorname'",
+                      file=sys.stderr)
+                sys.exit(os.EX_SOFTWARE)
+            selectorname = cmd.config.selectorname[0]
+
+        list_of_results = lh.search(
+            search_filter="(&(objectClass=DKIM)(DKIMSelector={0}))".format(
+                selectorname))
+
+        if len(list_of_results) == 0:
+            print("WARN: Selector '{0}' does not exist".format(
+                selectorname), file=sys.stderr)
+            sys.exit(os.EX_SOFTWARE)
+
+        ldap_object = list_of_results[0]
+        dn = ldap_object[0]
+        create_timestamp = ldap_object[1]['createTimestamp'][0]
+
+        dbg("cmd.config.age: "
+            "dn={0}, create_timestamp={1}".format(dn, create_timestamp))
+
+        ct = self.convert_ldaptime_to_datetime(create_timestamp)
+        dbg("cmd.config.age: ct={0}".format(ct))
+
+        if days:
+            cmp_age = days
+        else:
+            cmp_age = cmd.config.age
+        dbg("cmd.config.age: cmp_age={0}".format(cmp_age))
+
+        # Older than or younger than logic flag
+        negative = False
+        if cmp_age < 0:
+            negative = True
+
+        if days_delta:
+            dt = days_delta
+            cmp_age = None
+        else:
+            if cmp_age < 0:
+                cmp_age *= -1
+            dt = datetime.timedelta(days=cmp_age)
+        dbg("cmd.config.age: dt={0}".format(dt))
+
+        # Check, if key is more than X days old
+        if not negative or cmp_age is None:
+            dbg("cmd.config.age: positive age")
+            if datetime.datetime.now() - dt > ct:
+                dbg("cmd.config.age: Key is older")
+                return True
+            else:
+                dbg("cmd.config.age: Key is younger")
+                return False
+
+        if negative:
+            dbg("cmd.config.age: negative age")
+            if datetime.datetime.now() - dt < ct:
+                dbg("cmd.config.age: Key is younger")
+                return True
+            else:
+                dbg("cmd.config.age: Key is older")
+                return False
+
+    def cmd_active(self, selectorname=None):
+        """--active command
+
+        Set the DKIMActive attribute (TRUE) to a new selector. It scans all
+        other LDAP objects from the same domain container object and set old
+        DKIMActive attributes to FALSE.
+
+        :param selectorname: The name of a selector for which the DKIMActive
+        attribute is to be set TRUE
+        """
+        if selectorname:
+            assert isinstance(selectorname, str)
+
+        cmd = self.__cmd
+        lh = self.__ldap
+
+        if len(cmd.config.selectorname) > 1:
+            print("Error: Please specify only one 'selectorname'",
+                  file=sys.stderr)
+            sys.exit(os.EX_SOFTWARE)
+
+        if not selectorname:
+            selectorname = cmd.config.selectorname[0]
+
+        list_of_results = lh.search(
+            search_filter="(&(objectClass=DKIM)(DKIMSelector={0}))".format(
+                selectorname))
+        if len(list_of_results) == 0:
+            print("Error: Specified DKIM selector does not exist",
+                  file=sys.stderr)
+            sys.exit(os.EX_SOFTWARE)
+
+        ldap_object = list_of_results[0]
+        dn = ldap_object[0]
+
+        # Try to find the parent container for the given selector
+        pat = r"^DKIMSelector=[^,]+,(.+)"
+        prog = re.compile(pat, flags=re.UNICODE | re.IGNORECASE)
+
+        matchobj = prog.match(dn)
+        if matchobj and matchobj.group(1):
+            dbg("cmd.config.active: matchobj.group(1)={0}".format(
+                matchobj.group(1)))
+            parent_dn = matchobj.group(1).lstrip()
+        else:
+            print("Error: Can not determ the base URI for the given "
+                  "selector", file=sys.stderr)
+            sys.exit(os.EX_SOFTWARE)
+
+        # Find old DKIM key, which currently has the DKIMActive attribute set
+        # to TRUE
+        list_of_results = lh.search(
+            search_filter="(&(objectClass=DKIM)(DKIMActive=TRUE))",
+            base=parent_dn)
+
+        # It MAY exist more than one DKIMActive(TRUE) object
+        dn_with_dkimactive_true = False
+        for ldap_object in iter(list_of_results):
+            # Do not re-add the attribute, if the selector points to a DKIM
+            # key that already is active
+            if ldap_object[0] == dn:
+                dbg("cmd.config.active: DKIMActive attribute already set "
+                    "to TRUE for dn: {0}".format(dn))
+                dn_with_dkimactive_true = True
+                continue
+            print("DKIMActive=FALSE DN: {0}".format(ldap_object[0]))
+            if self.ask(
+                    "Do you really want to disable this DKIM key?"):
+                lh.unset_active(ldap_object[0])
+
+        if not dn_with_dkimactive_true:
+            print("DKIMActive TRUE DN: {0}".format(dn))
+            if self.ask("Do you want to enable this DKIM key?"):
+                lh.set_active(dn)
+
+    def cmd_testkey(self, selectorlist=None):
+        """--testkey command
+
+        Ask a DNS resolver for the public DKIM TXT record.
+
+        :param selectorlist: An optional list of selector names, for which a
+        query should be done. If not given, it uses '--selectorname'
+        :return: A dictionary for each selector name. Values are true,
+        if a record was found and false, if none was published in DNS.
+        """
+        if selectorlist:
+            assert isinstance(selectorlist, list)
+
+        cf = self.__cf
+        cmd = self.__cmd
+        lh = self.__ldap
+
+        # Try to find the parent container for the given selector
+        pat = r"^DKIMSelector=[^,]+,(.+)"
+        prog = re.compile(pat, flags=re.UNICODE | re.IGNORECASE)
+
+        # Store success/fail status for each query
+        result = dict()
+
+        if not selectorlist:
+            selectorlist = cmd.config.selectorname
+
+        for selector in iter(selectorlist):
+            result[selector] = False
+
+            list_of_results = lh.search(
+                search_filter="(&(objectClass=DKIM)(DKIMSelector={0}))".format(
+                    selector))
+            if len(list_of_results) > 0:
+                ldap_object = list_of_results[0]
+                dn = ldap_object[0]
+                matchobj = prog.match(dn)
+                if matchobj and matchobj.group(1):
+                    dbg("cmd.config.testkey: matchobj.group(1)={0}".format(
+                        matchobj.group(1)))
+                    parent_dn = matchobj.group(1).lstrip()
+                else:
+                    print("Error: Can not determ the base URI for the given "
+                          "selector", file=sys.stderr)
+                    sys.exit(os.EX_SOFTWARE)
+
+                # Get the domainname from parent DN
+                list_of_results = lh.search(
+                    search_filter="(!(objectClass=DKIM))", base=parent_dn)
+                ldap_object = list_of_results[0]
+                try:
+                    domainname = ldap_object[1][cf.ldap['domain']][0]
+                except KeyError:
+                    print("Error: Can not get domainname from object",
+                          file=sys.stderr)
+                    sys.exit(os.EX_SOFTWARE)
+
+                dns_query = "{0}._domainkey.{1}".format(selector, domainname)
+
+                print("Query {0}".format(dns_query))
+                try:
+                    answers = dns.resolver.query(dns_query, "TXT")
+                    for rdata in answers:
+                        if not result[selector]:
+                            result[selector] = True
+                        print("TXT: {0}".format("".join(rdata.strings)))
+                except dns.resolver.NXDOMAIN:
+                    print("TXT: not present")
+                except dns.resolver.NoNameservers:
+                    print("WARN: No nameservers could be reached")
+
+            else:
+                print("WARN: DKIMSelector '{0}' does not exist".format(
+                    selector))
+
+        return result
+
+    def cmd_rotate(self):
+        """--rotate command
+
+        Scan Some or all domains in LDAP for valid DKIM keys that should be
+        switched to active state. It checks for the age of the DKIM objects
+        as well as it does a DNS check, before swithing a DKIM key. If more
+        than one possible DKIM object was found in LDAP, it iterates from the
+        newest to the oldest, until it can successfully complete the task.
+        """
+        cf = self.__cf
+        cmd = self.__cmd
+        lh = self.__ldap
+
+        if cmd.config.domain:
+            domains = cmd.config.domain
+        else:
+            domains = '*'
+
+        # Iterate through domain objects
+        for domain in iter(domains):
+            list_of_results = lh.search(domain)
+            for ldap_object in iter(list_of_results):
+                dn = ldap_object[0]
+                try:
+                    domainname = ldap_object[1][cf.ldap['domain']][0]
+                except ValueError:
+                    print("WARN: Domain attribute '{0}' not present in "
+                          "object {1}".format(cf.ldap['domain'], dn),
+                          file=sys.stderr)
+                    continue
+                dbg("cmn.config.rotate: domain '{0}'".format(domainname))
+
+                # Get full list of selector objects per domain
+                list_of_results2 = lh.search(
+                    search_filter="(&(objectClass=DKIM)(DKIMSelector=*))",
+                    base=dn)
+                dts = list()
+                for ldap_object2 in iter(list_of_results2):
+                    dn_sel = ldap_object2[0]
+                    selectorname = ldap_object2[1]['DKIMSelector'][0]
+                    dbg("cmd.config.rotate: DN={0}".format(dn_sel))
+
+                    if "DKIMActive" in ldap_object2[1] and \
+                            ldap_object2[1]['DKIMActive'][0] == "TRUE":
+                        dbg("cmd.config.rotate: Found DKIMActive TRUE")
+                        continue
+                    create_timestamp = ldap_object2[1]['createTimestamp'][0]
+
+                    dbg("cmd.config.rotate: "
+                        "dn={0}, create_timestamp={1}".format(
+                         dn_sel, create_timestamp))
+
+                    dts.append((
+                        dn,
+                        selectorname,
+                        self.convert_ldaptime_to_datetime(create_timestamp)
+                    ))
+
+                dts = sorted(dts, key=itemgetter(2), reverse=True)
+                dbg("cmd.config.rotate: dts={0}".format(dts))
+
+                valid_key = None
+                for i, selectorname in enumerate([x[1] for x in iter(dts)]):
+                    dbg("cmd.config.rotate: Checking selector '{0}'".format(
+                        selectorname))
+                    if self._delete_not_before(selectorname=selectorname):
+                        result = self.cmd_testkey(selectorlist=[selectorname])
+                        if result[selectorname]:
+                            dbg("cmd.config.rotate: Key found in DNS")
+                            valid_key = i
+                            break
+                        dbg("cmd.config.rotate: Key not yet published in DNS")
+
+                if valid_key:
+                    dbg("cmd.config.rotate: Setting DKIMActive to TRUE for "
+                        "'{0}'".format(dts[valid_key][1]))
+                    self.cmd_active(selectorname=dts[valid_key][1])
+
+    def cmd_add_new(self):
+        """--add-new command
+
+        If the remaining lifetime for a DKIM key has reached, create a new
+        key for each domain in LDAP
+        """
+        cf = self.__cf
+        lh = self.__ldap
+
+        # Iterate through all domains
+        list_of_results = lh.search()
+        for ldap_object in iter(list_of_results):
+            dn = ldap_object[0]
+            try:
+                domainname = ldap_object[1][cf.ldap['domain']][0]
+            except ValueError:
+                print("WARN: Domain attribute '{0}' not present in "
+                      "object {1}".format(cf.ldap['domain'], dn),
+                      file=sys.stderr)
+                continue
+            dbg("cmn.config.add_new: domain '{0}'".format(domainname))
+
+            # Get full list of selector objects per domain
+            list_of_results2 = lh.search(
+                search_filter="(&(objectClass=DKIM)(DKIMSelector=*))", base=dn)
+            dts = list()
+            for ldap_object2 in iter(list_of_results2):
+                dn_sel = ldap_object2[0]
+                selectorname = ldap_object2[1]['DKIMSelector'][0]
+                dbg("cmd.config.add_new: DN={0}".format(dn_sel))
+
+                if "DKIMActive" in ldap_object2[1] and \
+                        ldap_object2[1]['DKIMActive'][0] == "TRUE":
+                    dbg("cmd.config.add_new: Found active DKIM key")
+                    continue
+                create_timestamp = ldap_object2[1]['createTimestamp'][0]
+
+                dbg("cmd.config.add_new: "
+                    "dn={0}, create_timestamp={1}".format(
+                     dn_sel, create_timestamp))
+
+                dts.append((
+                    selectorname,
+                    self.convert_ldaptime_to_datetime(create_timestamp)
+                ))
+
+            dts = sorted(dts, key=itemgetter(1), reverse=True)
+            dbg("cmd.config.add_new: dts={0}".format(dts))
+
+            if len(dts) == 0:
+                dbg("cmd.config.add_new: Empty list. Need new key")
+                self.cmd_create(domainname=domainname)
+            else:
+                for selectorname, dt in iter(dts):
+                    if self._expire_after(selectorname=selectorname):
+                        dbg("cmd.config.add_new: Too old. Need new key")
+                        self.cmd_create(domainname=domainname)
+                    break
+
+    def cmd_add_missing(self):
+        """--add-missing command
+
+        Check the LDAP tree for domain containers and if a container does not
+        have any DKIM keys yet, create a new DKIM object
+        """
+        cf = self.__cf
+        lh = self.__ldap
+
+        # Iterate through all domains
+        list_of_results = lh.search()
+        for ldap_object in iter(list_of_results):
+            dn = ldap_object[0]
+            try:
+                domainname = ldap_object[1][cf.ldap['domain']][0]
+            except ValueError:
+                print("WARN: Domain attribute '{0}' not present in "
+                      "object {1}".format(cf.ldap['domain'], dn),
+                      file=sys.stderr)
+                continue
+            dbg("cmn.config.add_missung: domain '{0}'".format(domainname))
+
+            # Get full list of selector objects per domain
+            list_of_results2 = lh.search(
+                search_filter="(&(objectClass=DKIM)(DKIMSelector=*))", base=dn)
+            if len(list_of_results2) == 0:
+                dbg("cmd.config.add_missing: Need DKIM object")
+                self.cmd_create(domainname=domainname)
+
+    def cmd_auto(self):
+        """--auto command
+
+        A shortcut for --add-missing, --add-new, --rotate and --delete. For
+        the latter command, we only remove keys, if the date of keys are
+        older than the active date (The object that has the DKIMDActive
+        attribute set to TRUE)
+        """
+        self.cmd_add_new()
+        self.cmd_add_missing()
+        self.cmd_rotate()
+
+        cf = self.__cf
+        lh = self.__ldap
+
+        # Iterate through all domains
+        list_of_results = lh.search()
+        for ldap_object in iter(list_of_results):
+            dn = ldap_object[0]
+            try:
+                domainname = ldap_object[1][cf.ldap['domain']][0]
+            except ValueError:
+                print("WARN: Domain attribute '{0}' not present in "
+                      "object {1}".format(cf.ldap['domain'], dn),
+                      file=sys.stderr)
+                continue
+            dbg("cmn.config.add_missung: domain '{0}'".format(domainname))
+
+            # Get full list of selector objects per domain
+            list_of_results2 = lh.search(
+                search_filter="(&(objectClass=DKIM)(DKIMSelector=*))", base=dn)
+            dts = list()
+            active_dt = None
+            for ldap_object2 in iter(list_of_results2):
+                dn_sel = ldap_object2[0]
+                selectorname = ldap_object2[1]['DKIMSelector'][0]
+                dbg("cmd.config.add_new: DN={0}".format(dn_sel))
+
+                if "DKIMActive" in ldap_object2[1] and \
+                        ldap_object2[1]['DKIMActive'][0] == "TRUE":
+                    dbg("cmd.config.add_new: Found active DKIM key")
+                    active_dt = self.convert_ldaptime_to_datetime(
+                        ldap_object2[1]['createTimestamp'][0])
+                    continue
+                create_timestamp = ldap_object2[1]['createTimestamp'][0]
+                dts.append((
+                    selectorname,
+                    self.convert_ldaptime_to_datetime(create_timestamp)
+                ))
+
+            if active_dt:
+                for selectorname, dt in iter(dts):
+                    if dt < active_dt:
+                        dbg("cmd.config.auto: Selector {0} is older than "
+                            "active key".format(selectorname))
+                        self.cmd_delete(selectorname=selectorname)
+
+    def _expire_after(self, selectorname=None):
+        """If the remaining days for a DKIM keys are below 'days'left',
+        indicate that a new DKIM key should be created
+
+        :param selectorname: The name of a selector
+        :return: Boolean. True, if a new key should be created and false, if not
+        """
+        if selectorname:
+            assert isinstance(selectorname, str)
+
+        dl = GlobalCfg.expire_after
+        dbg("_expire_after: dl={0}".format(dl))
+
+        if self.cmd_age(days=dl, selectorname=selectorname):
+            dbg("_expire_after: New key should be created")
+            return True
+
+        return False
+
+    def _delete_not_before(self, selectorname=None):
+        """A DKIM key must be at least a certain amount of days old, before
+        it can be switched off from active and being deleted.
+
+        :param selectorname: The name of a selector
+        :return: Boolean. True, if a DKIM key object may be ready for deletion
+        """
+        if selectorname:
+            assert isinstance(selectorname, str)
+
+        days = datetime.timedelta(days=GlobalCfg.delete_not_before)
+        dbg("_delete_not_before: days={0}".format(days))
+
+        if self.cmd_age(days_delta=days, selectorname=selectorname):
+            dbg("_delete_not_before: Key can be deleted")
+            return True
+
+        return False
+
+    # noinspection PyPep8Naming,PyTypeChecker
+    @staticmethod
+    def generate_RSA_private_key(bits):
+        """Derived from the examples on Github
+
+        Generate an RSA keypair with an exponent of 65537 in PEM format
+
+        param bits: bits The key length in bits
+        :return: Private key in PEM format
+        """
+        print("Generating RSA key with {0} bits".format(bits))
+        new_key = RSA.gen_key(bits, 65537)
+        memory = BIO.MemoryBuffer()
+        new_key.save_key_bio(memory, cipher=None)
+        private_key = memory.getvalue()
+
+        return private_key
+
+    @staticmethod
+    def ask(what):
+        """Helper function for the interactive mode
+
+        :return: Boolean. Tru if a question was answered positive, else false
+        """
+        if INTERACT:
+            print(what + " (y/N): ", end="")
+            while True:
+                answer = raw_input("> ")
+                if answer.lower() == "y":
+                    return True
+                if answer.lower() in ("", "n"):
+                    return False
+                print("Unknown answer. Please answer 'y' or 'n': ", end="")
+        else:
+            return True
+
+    @staticmethod
+    def convert_ldaptime_to_datetime(ldaptime):
+        """Convert a LDAP timestamp to a datetime object
+
+        :param ldaptime: CreateTimestamp or ModfiyTimestamp LDAP string
+        :return: datetime object
+        """
+        assert isinstance(ldaptime, str)
+
+        ct_year = int(ldaptime[:4])
+        ct_month = int(ldaptime[4:6])
+        ct_day = int(ldaptime[6:8])
+        ct_hour = int(ldaptime[8:10])
+        ct_min = int(ldaptime[10:12])
+        ct_sec = int(ldaptime[12:14])
+
+        return datetime.datetime(
+            year=ct_year, month=ct_month, day=ct_day,
+            hour=ct_hour, minute=ct_min, second=ct_sec)
+
+
+def dbg(msg):
+    """Helper function for the debug mode
+    """
+    if DEBUG:
+        print("DEBUG: {0}".format(msg))
+
+
+def main():
+    """Main function
+    """
+    cmd = Cmd()
+
+    if cmd.config.version:
+        print("Version {0}".format(__version__))
+        sys.exit(os.EX_OK)
+
+    cf = CfgFile(cmd.config.config)
+
+    if INTERACT:
+        print("INFO: Interactive mode: ON")
+    if DEBUG:
+        print("INFO: Debugging turned: ON")
+
+    # Set delete_not_before or its default
+    if cf.globals['delete_not_before'] and not cmd.config.delete_not_before:
+        GlobalCfg.delete_not_before = cf.globals['delete_not_before']
+    if cmd.config.delete_not_before:
+        GlobalCfg.delete_not_before = cmd.config.delete_not_before
+
+    # Set expire_after or its default
+    if cf.globals['expire_after'] and not cmd.config.expire_after:
+        GlobalCfg.expire_after = cf.globals['expire_after']
+    if cmd.config.expire_after:
+        GlobalCfg.expire_after = cmd.config.expire_after
+
+    dbg(cf.ldap)
+    dbg(cf.globals)
+
+    manager = Manager(cf, cmd)
+
+    if cmd.config.list:
+        manager.cmd_list()
+
+    if cmd.config.create:
+        manager.cmd_create()
+
+    if cmd.config.delete:
+        manager.cmd_delete()
+
+    if cmd.config.age:
+        if manager.cmd_age():
+            sys.exit(0)
+        else:
+            sys.exit(1)
+
+    if cmd.config.active:
+        manager.cmd_active()
+
+    if cmd.config.testkey:
+        manager.cmd_testkey()
+
+    if cmd.config.rotate:
+        manager.cmd_rotate()
+
+    if cmd.config.add_new:
+        manager.cmd_add_new()
+
+    if cmd.config.add_missing:
+        manager.cmd_add_missing()
+
+    if cmd.config.auto:
+        manager.cmd_auto()
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        if DEBUG:
+            traceback.print_exc()
+        print("Error: Program unexpectedly terminated: {0}".format(e),
+              file=sys.stderr)
+        sys.exit(os.EX_SOFTWARE)
+
+    sys.exit(os.EX_OK)
