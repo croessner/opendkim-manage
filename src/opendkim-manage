@@ -580,8 +580,16 @@ class LDAP(object):
             if not self.connected:
                 self.connect()
             if self.connected and self.__con:
-                self.__con.modify_s(
-                    dn, [(ldap.MOD_DELETE, "DKIMActive", "TRUE")])
+                try:
+                    self.__con.modify_s(
+                        dn, [(ldap.MOD_DELETE, "DKIMActive", "TRUE")])
+                except Exception:
+                    pass
+                try:
+                    self.__con.modify_s(
+                        dn, [(ldap.MOD_ADD, "DKIMActive", "FALSE")])
+                except Exception:
+                    pass
 
     def set_active(self, dn):
         """Set current DKIM object active
@@ -594,8 +602,16 @@ class LDAP(object):
             if not self.connected:
                 self.connect()
             if self.connected and self.__con:
-                self.__con.modify_s(
-                    dn, [(ldap.MOD_ADD, "DKIMActive", "FALSE")])
+                try:
+                    self.__con.modify_s(
+                        dn, [(ldap.MOD_DELETE, "DKIMActive", "FALSE")])
+                except Exception:
+                    pass
+                try:
+                    self.__con.modify_s(
+                        dn, [(ldap.MOD_ADD, "DKIMActive", "TRUE")])
+                except Exception:
+                    pass
 
 
 class NoSelectornameError(Exception):
@@ -1038,7 +1054,7 @@ class Manager(object):
         cmd = self.__cmd
         lh = self.__ldap
 
-        if len(cmd.config.selectorname) > 1:
+        if cmd.config.selectorname and len(cmd.config.selectorname) > 1:
             print("Error: Please specify only one 'selectorname'",
                   file=sys.stderr)
             sys.exit(os.EX_SOFTWARE)
@@ -1246,7 +1262,7 @@ class Manager(object):
                         break
                     dbg("cmd.config.rotate: Key not yet published in DNS")
 
-                if valid_key:
+                if valid_key is not None:
                     dbg("cmd.config.rotate: Setting DKIMActive to TRUE for "
                         "'{0}'".format(dts[valid_key][1]))
                     self.cmd_active(selectorname=dts[valid_key][1])
