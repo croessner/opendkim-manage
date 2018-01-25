@@ -1239,13 +1239,12 @@ class Manager(object):
                 for i, selectorname in enumerate([x[1] for x in iter(dts)]):
                     dbg("cmd.config.rotate: Checking selector '{0}'".format(
                         selectorname))
-                    if self._delete_not_before(selectorname=selectorname):
-                        result = self.cmd_testkey(selectorlist=[selectorname])
-                        if result[selectorname]:
-                            dbg("cmd.config.rotate: Key found in DNS")
-                            valid_key = i
-                            break
-                        dbg("cmd.config.rotate: Key not yet published in DNS")
+                    result = self.cmd_testkey(selectorlist=[selectorname])
+                    if result[selectorname]:
+                        dbg("cmd.config.rotate: Key found in DNS")
+                        valid_key = i
+                        break
+                    dbg("cmd.config.rotate: Key not yet published in DNS")
 
                 if valid_key:
                     dbg("cmd.config.rotate: Setting DKIMActive to TRUE for "
