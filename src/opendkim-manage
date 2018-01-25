@@ -1395,7 +1395,12 @@ class Manager(object):
                     if dt < active_dt:
                         dbg("cmd.config.auto: Selector {0} is older than "
                             "active key".format(selectorname))
-                        self.cmd_delete(selectorname=selectorname)
+                        if self._delete_not_before(selectorname=selectorname):
+                            dbg("cmd.config.auto: Going to remove the key")
+                            self.cmd_delete(selectorname=selectorname)
+                        else:
+                            dbg("cmd.config.auto: --delete-not-before not "
+                                "reached. Not removing this key")
 
     def _expire_after(self, selectorname=None):
         """If the remaining days for a DKIM keys are below 'days'left',
