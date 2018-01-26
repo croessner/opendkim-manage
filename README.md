@@ -5,4 +5,5 @@ This packages is (will be) well tested on Debian 9 (Stretch) and SuSE Linux Ente
 
 ```
 apt-get install --no-install-recommends python-setuptools
+apt-get install --no-install-recommends python-dnspython
 ```
