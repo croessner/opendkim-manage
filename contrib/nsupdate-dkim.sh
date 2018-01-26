@@ -22,8 +22,8 @@ for domain in $(opendkim-manage -l | grep "DNS" | cut -d "'" -f2 | cut -d "'" -f
 	echo "done"
 	
 	# Remove old keys from DNS
-	for dkimkey in $(dig +short @${NS} axfr -k ${TSIGKEY} ${domain} | \
-		grep _domainkey | cut -d " " -f1); do
+	for dkimkey in $(dig +noall +answer @${NS} AXFR -k ${TSIGKEY} ${domain} | \
+		grep _domainkey | grep "IN TXT" | cut -d " " -f1); do
 		opendkim-manage -l -D ${domain} | grep "DKIMSelector" | awk '{ print $3; }' | \
 		while read selector; do
 			ldapkey="${selector,,}._domainkey.${domain}."
