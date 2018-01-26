@@ -12,7 +12,7 @@ if [[ ! -d "${WORKDIR}" ]]; then
 	mkdir -p ${WORKDIR}
 fi
 
-for domain in $(opendkim-manage -l | grep DNS | cut -d "'" -f2 | cut -d "'" -f1); do
+for domain in $(opendkim-manage -l | grep "DNS" | cut -d "'" -f2 | cut -d "'" -f1); do
 	# Generate nsupdate files
 	echo -n "Generate ${WORKDIR}/${domain}.nsupdate file... "
 	opendkim-genzone -F -t 3600 -u -x /etc/opendkim/opendkim.sign.conf -d ${domain} 2>/dev/null | \
