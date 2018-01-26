@@ -580,8 +580,16 @@ class LDAP(object):
             if not self.connected:
                 self.connect()
             if self.connected and self.__con:
-                self.__con.modify_s(
-                    dn, [(ldap.MOD_DELETE, "DKIMActive", "TRUE")])
+                try:
+                    self.__con.modify_s(
+                        dn, [(ldap.MOD_DELETE, "DKIMActive", "TRUE")])
+                except Exception:
+                    pass
+                try:
+                    self.__con.modify_s(
+                        dn, [(ldap.MOD_ADD, "DKIMActive", "FALSE")])
+                except Exception:
+                    pass
 
     def set_active(self, dn):
         """Set current DKIM object active
@@ -594,8 +602,16 @@ class LDAP(object):
             if not self.connected:
                 self.connect()
             if self.connected and self.__con:
-                self.__con.modify_s(
-                    dn, [(ldap.MOD_ADD, "DKIMActive", "FALSE")])
+                try:
+                    self.__con.modify_s(
+                        dn, [(ldap.MOD_DELETE, "DKIMActive", "FALSE")])
+                except Exception:
+                    pass
+                try:
+                    self.__con.modify_s(
+                        dn, [(ldap.MOD_ADD, "DKIMActive", "TRUE")])
+                except Exception:
+                    pass
 
 
 class NoSelectornameError(Exception):
@@ -1038,7 +1054,7 @@ class Manager(object):
         cmd = self.__cmd
         lh = self.__ldap
 
-        if len(cmd.config.selectorname) > 1:
+        if cmd.config.selectorname and len(cmd.config.selectorname) > 1:
             print("Error: Please specify only one 'selectorname'",
                   file=sys.stderr)
             sys.exit(os.EX_SOFTWARE)
@@ -1204,13 +1220,14 @@ class Manager(object):
                           "object {1}".format(cf.ldap['domain'], dn),
                           file=sys.stderr)
                     continue
-                dbg("cmn.config.rotate: domain '{0}'".format(domainname))
+                dbg("cmd.config.rotate: domain '{0}'".format(domainname))
 
                 # Get full list of selector objects per domain
                 list_of_results2 = lh.search(
                     search_filter="(&(objectClass=DKIM)(DKIMSelector=*))",
                     base=dn)
                 dts = list()
+                active_dt = None
                 for ldap_object2 in iter(list_of_results2):
                     dn_sel = ldap_object2[0]
                     selectorname = ldap_object2[1]['DKIMSelector'][0]
@@ -1219,6 +1236,8 @@ class Manager(object):
                     if "DKIMActive" in ldap_object2[1] and \
                             ldap_object2[1]['DKIMActive'][0] == "TRUE":
                         dbg("cmd.config.rotate: Found DKIMActive TRUE")
+                        active_dt = self.convert_ldaptime_to_datetime(
+                            ldap_object2[1]['createTimestamp'][0])
                         continue
                     create_timestamp = ldap_object2[1]['createTimestamp'][0]
 
@@ -1239,14 +1258,19 @@ class Manager(object):
                 for i, selectorname in enumerate([x[1] for x in iter(dts)]):
                     dbg("cmd.config.rotate: Checking selector '{0}'".format(
                         selectorname))
-                    result = self.cmd_testkey(selectorlist=[selectorname])
-                    if result[selectorname]:
-                        dbg("cmd.config.rotate: Key found in DNS")
-                        valid_key = i
-                        break
-                    dbg("cmd.config.rotate: Key not yet published in DNS")
+                    # Check if the current key is newer than the active key
+                    if active_dt and dts[i][2] > active_dt:
+                        result = self.cmd_testkey(selectorlist=[selectorname])
+                        if result[selectorname]:
+                            dbg("cmd.config.rotate: Key found in DNS")
+                            valid_key = i
+                            break
+                        dbg("cmd.config.rotate: Key not yet published in DNS")
+                    else:
+                        dbg("cmd.config.rotate: Selector '{0}' is younger than "
+                            "the active selector".format(selectorname))
 
-                if valid_key:
+                if valid_key is not None:
                     dbg("cmd.config.rotate: Setting DKIMActive to TRUE for "
                         "'{0}'".format(dts[valid_key][1]))
                     self.cmd_active(selectorname=dts[valid_key][1])
@@ -1277,6 +1301,7 @@ class Manager(object):
             list_of_results2 = lh.search(
                 search_filter="(&(objectClass=DKIM)(DKIMSelector=*))", base=dn)
             dts = list()
+            active_dt = None
             for ldap_object2 in iter(list_of_results2):
                 dn_sel = ldap_object2[0]
                 selectorname = ldap_object2[1]['DKIMSelector'][0]
@@ -1285,6 +1310,11 @@ class Manager(object):
                 if "DKIMActive" in ldap_object2[1] and \
                         ldap_object2[1]['DKIMActive'][0] == "TRUE":
                     dbg("cmd.config.add_new: Found active DKIM key")
+                    if not self._expire_after(selectorname=selectorname):
+                        dbg("cmd.config.add_new: Key is still fine")
+                        return
+                    active_dt = self.convert_ldaptime_to_datetime(
+                        ldap_object2[1]['createTimestamp'][0])
                     continue
                 create_timestamp = ldap_object2[1]['createTimestamp'][0]
 
@@ -1305,9 +1335,14 @@ class Manager(object):
                 self.cmd_create(domainname=domainname)
             else:
                 for selectorname, dt in iter(dts):
-                    if self._expire_after(selectorname=selectorname):
-                        dbg("cmd.config.add_new: Too old. Need new key")
-                        self.cmd_create(domainname=domainname)
+                    # Do not create a new key, if all old keys are younger than
+                    # the current active one
+                    if active_dt and not dt < active_dt:
+                        dbg("cmd.config.add_new: dt={0} active_dt={1}".format(
+                            dt, active_dt))
+                        if self._expire_after(selectorname=selectorname):
+                            dbg("cmd.config.add_new: Too old. Need new key")
+                            self.cmd_create(domainname=domainname)
                     break
 
     def cmd_add_missing(self):
