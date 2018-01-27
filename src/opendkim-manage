@@ -1295,7 +1295,7 @@ class Manager(object):
                       "object {1}".format(cf.ldap['domain'], dn),
                       file=sys.stderr)
                 continue
-            dbg("cmn.config.add_new: domain '{0}'".format(domainname))
+            dbg("cmd.config.add_new: domain '{0}'".format(domainname))
 
             # Get full list of selector objects per domain
             list_of_results2 = lh.search(
@@ -1365,7 +1365,7 @@ class Manager(object):
                       "object {1}".format(cf.ldap['domain'], dn),
                       file=sys.stderr)
                 continue
-            dbg("cmn.config.add_missing: domain '{0}'".format(domainname))
+            dbg("cmd.config.add_missing: domain '{0}'".format(domainname))
 
             # Get full list of selector objects per domain
             list_of_results2 = lh.search(
@@ -1400,7 +1400,7 @@ class Manager(object):
                       "object {1}".format(cf.ldap['domain'], dn),
                       file=sys.stderr)
                 continue
-            dbg("cmn.config.add_missing: domain '{0}'".format(domainname))
+            dbg("cmd.config.add_missing: domain '{0}'".format(domainname))
 
             # Get full list of selector objects per domain
             list_of_results2 = lh.search(
