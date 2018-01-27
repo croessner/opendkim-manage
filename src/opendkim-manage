@@ -42,6 +42,13 @@ import ldap.modlist as modlist
 import ldap.sasl
 import ldapurl
 
+try:
+    from colorama import init, Fore, Style
+    init()
+    have_color = True
+except ImportError:
+    have_color = False
+
 from M2Crypto import RSA, BIO
 
 __author__ = "Christian Rößner"
@@ -56,6 +63,8 @@ __status__ = "Development"
 NAME = "opendkim-manage"
 
 DEBUG = True
+VERBOSE = False
+USE_COLOR = False
 INTERACT = False
 
 
@@ -156,7 +165,7 @@ class Cmd(object):
     """Command line parser
     """
     def __init__(self):
-        global INTERACT, DEBUG
+        global INTERACT, DEBUG, VERBOSE, USE_COLOR
 
         parser = argparse.ArgumentParser(prog=NAME)
 
@@ -254,6 +263,14 @@ class Cmd(object):
                             default=False,
                             action="store_true",
                             help="Turn on debugging")
+        parser.add_argument("--verbose", "-v",
+                            default=False,
+                            action="store_true",
+                            help="Verbose output")
+        parser.add_argument("--color",
+                            default=False,
+                            action="store_true",
+                            help="Turn on colors for output")
         parser.add_argument("--version", "-V",
                             default=False,
                             action="store_true",
@@ -331,6 +348,8 @@ class Cmd(object):
                 sys.exit(os.EX_USAGE)
 
         DEBUG = self.config.debug
+        VERBOSE = self.config.verbose
+        USE_COLOR = self.config.color
         INTERACT = self.config.interactive
 
 
@@ -726,6 +745,8 @@ class Manager(object):
         the object contains a DKIMActive attribute set to TRUE, mark the
         output as active.
         """
+        verbose("Command list")
+
         cf = self.__cf
         cmd = self.__cmd
         lh = self.__ldap
@@ -787,6 +808,8 @@ class Manager(object):
         selector was specified or use the 'selectorformat' string to compute
         one on the fly.
         """
+        verbose("Command create")
+
         if domainname:
             assert isinstance(domainname, str)
 
@@ -911,6 +934,8 @@ class Manager(object):
 
         :param selectorname: Optional selector to delete
         """
+        verbose("Command delete")
+
         cmd = self.__cmd
 
         if selectorname:
@@ -963,6 +988,8 @@ class Manager(object):
         line or is set elsewhere in the code
         :return: Boolean. Depends on the days-sign.
         """
+        verbose("Command age")
+
         if days:
             assert isinstance(days, int)
         if days_delta:
@@ -1048,6 +1075,8 @@ class Manager(object):
         :param selectorname: The name of a selector for which the DKIMActive
         attribute is to be set TRUE
         """
+        verbose("Command active")
+
         if selectorname:
             assert isinstance(selectorname, str)
 
@@ -1123,6 +1152,8 @@ class Manager(object):
         :return: A dictionary for each selector name. Values are true,
         if a record was found and false, if none was published in DNS.
         """
+        verbose("Command testkey")
+
         if selectorlist:
             assert isinstance(selectorlist, list)
 
@@ -1199,6 +1230,8 @@ class Manager(object):
         than one possible DKIM object was found in LDAP, it iterates from the
         newest to the oldest, until it can successfully complete the task.
         """
+        verbose("Command rotate")
+
         cf = self.__cf
         cmd = self.__cmd
         lh = self.__ldap
@@ -1281,6 +1314,8 @@ class Manager(object):
         If the remaining lifetime for a DKIM key has reached, create a new
         key for each domain in LDAP
         """
+        verbose("Command add-new")
+
         cf = self.__cf
         lh = self.__ldap
 
@@ -1351,6 +1386,8 @@ class Manager(object):
         Check the LDAP tree for domain containers and if a container does not
         have any DKIM keys yet, create a new DKIM object
         """
+        verbose("Command add-missing")
+
         cf = self.__cf
         lh = self.__ldap
 
@@ -1382,6 +1419,8 @@ class Manager(object):
         older than the active date (The object that has the DKIMDActive
         attribute set to TRUE)
         """
+        verbose("Command auto")
+
         self.cmd_add_new()
         self.cmd_add_missing()
         self.cmd_rotate()
@@ -1531,11 +1570,27 @@ class Manager(object):
             hour=ct_hour, minute=ct_min, second=ct_sec)
 
 
+def verbose(msg):
+    """Verbose ourput to terminal
+    """
+    if VERBOSE:
+        if have_color and USE_COLOR:
+            print(Fore.YELLOW, end="")
+        print(msg)
+        if have_color and USE_COLOR:
+            print(Style.RESET_ALL, end="")
+
+
 def dbg(msg):
     """Helper function for the debug mode
     """
     if DEBUG:
-        print("DEBUG: {0}".format(msg))
+        if have_color and USE_COLOR:
+            _a1 = Fore.GREEN
+            _a2 = Style.RESET_ALL
+        else:
+            _a1 = _a2 = ""
+        print(_a1 + "DEBUG:" + _a2 + " {0}".format(msg))
 
 
 def main():
