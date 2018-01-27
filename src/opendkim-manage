@@ -104,21 +104,23 @@ class CfgFile(object):
 
         success = self.__config.read(cfgfile)
         if len(success) == 0:
-            print("Error: Config file '{0}' can not be read".format(cfgfile),
-                  file=sys.stderr)
+            print(_c("Error: Config file '{0}' can not be read".format(
+                cfgfile), "red"), file=sys.stderr)
             sys.exit(os.EX_OSERR)
 
         for sec in iter(self.__config.sections()):
             if sec not in sections:
-                print("Error: Unknown section '{0}'".format(sec),
+                print(_c("Error: Unknown section '{0}'".format(sec), "red)"),
                       file=sys.stderr)
                 sys.exit(os.EX_SOFTWARE)
 
         if not self.__config.has_section("global"):
-            print("Error: Missing requried section 'global'", file=sys.stderr)
+            print(_c("Error: Missing requried section 'global'", "red"),
+                  file=sys.stderr)
             sys.exit(os.EX_SOFTWARE)
         if not self.__config.has_section("ldap"):
-            print("Error: Missing requried section 'ldap'", file=sys.stderr)
+            print(_c("Error: Missing requried section 'ldap'", "red"),
+                  file=sys.stderr)
             sys.exit(os.EX_SOFTWARE)
 
         # Parse global options
@@ -127,8 +129,8 @@ class CfgFile(object):
         s = "global"
         for opt in iter(self.__config.options("global")):
             if opt not in global_opts:
-                print("Error: Unknown option '{0}' in section 'global'".format(
-                    opt), file=sys.stderr)
+                print(_c("Error: Unknown option '{0}' in section "
+                         "'global'".format(opt), "red"), file=sys.stderr)
                 sys.exit(os.EX_SOFTWARE)
             if opt == "delete_not_before" or opt == "expire_after":
                 try:
@@ -149,8 +151,8 @@ class CfgFile(object):
         s = "ldap"
         for opt in iter(self.__config.options("ldap")):
             if opt not in ldap_opts:
-                print("Error: Unknown option '{0}' in section 'ldap'".format(
-                    opt), file=sys.stderr)
+                print(_c("Error: Unknown option '{0}' in section 'ldap'".format(
+                         opt), "red"), file=sys.stderr)
                 sys.exit(os.EX_SOFTWARE)
             if opt == "usetls":
                 try:
@@ -281,7 +283,8 @@ class Cmd(object):
         # Some options require the '--domain' option being set
         if self.config.create:
             if not self.config.domain:
-                print("Error: Option '--domain' is required", file=sys.stderr)
+                print(_c("Error: Option '--domain' is required", "red"),
+                      file=sys.stderr)
                 sys.exit(os.EX_USAGE)
 
         # Some options require the '--selectorname' option being set
@@ -290,7 +293,8 @@ class Cmd(object):
             self.config.age or
             self.config.active) \
                 and not self.config.selectorname:
-            print("Error: Option '--selectorname' is required", file=sys.stderr)
+            print(_c("Error: Option '--selectorname' is required", "red"),
+                  file=sys.stderr)
             sys.exit(os.EX_USAGE)
 
         # Make sure, we do not use these command on a per-domain or
@@ -298,8 +302,8 @@ class Cmd(object):
         if (self.config.add_missing or self.config.add_new or
             self.config.rotate or self.config.auto) and \
                 (self.config.domain or self.config.selectorname):
-            print("Error: Option '--domain' and/or '--selectorname' not "
-                  "allowed", file=sys.stderr)
+            print(_c("Error: Option '--domain' and/or '--selectorname' not "
+                     "allowed", "red"), file=sys.stderr)
             sys.exit(os.EX_USAGE)
 
         # Binary fields
@@ -343,7 +347,7 @@ class Cmd(object):
                     flags != cmd_addmissing and \
                     flags != cmd_addnew and \
                     flags != cmd_auto:
-                print("Error: Only one command at a time is allowed",
+                print(_c("Error: Only one command at a time is allowed", "red"),
                       file=sys.stderr)
                 sys.exit(os.EX_USAGE)
 
@@ -383,10 +387,10 @@ class LDAP(object):
         """
         if not (self.__ldapcfg['uri'] and self.__ldapcfg['filter'] and
                 self.__ldapcfg['domain']):
-            print("Error: One of 'uri', 'filter' or 'domain' is missing in "
-                  "config file", file=sys.stderr)
+            print(_c("Error: One of 'uri', 'filter' or 'domain' is missing in "
+                     "config file", "red"), file=sys.stderr)
         if not ldapurl.isLDAPUrl(self.__ldapcfg['uri']):
-            print("Error: Invalid LDAP URI specified")
+            print(_c("Error: Invalid LDAP URI specified", "red"))
             sys.exit(os.EX_SOFTWARE)
         self.__urlparts = ldapurl.LDAPUrl(self.__ldapcfg['uri'])
 
@@ -406,7 +410,7 @@ class LDAP(object):
                     reqcert = ldap.OPT_X_TLS_DEMAND
                     dbg("LDAP: reqcert=DEMAND")
                 else:
-                    print("Error: Unsupport 'reqcert' argument",
+                    print(_c("Error: Unsupport 'reqcert' argument", "red"),
                           file=sys.stderr)
                     sys.exit(os.EX_SOFTWARE)
 
@@ -418,7 +422,7 @@ class LDAP(object):
 
             if self.__ldapcfg['cert']:
                 if not os.path.exists(self.__ldapcfg['cert']):
-                    print("Error: Can not read LDAP TLS cert file",
+                    print(_c("Error: Can not read LDAP TLS cert file", "red"),
                           file=sys.stderr)
                     sys.exit(os.EX_SOFTWARE)
                 ldap.set_option(
@@ -426,7 +430,7 @@ class LDAP(object):
                 dbg("LDAP: Set cert to {0}".format(self.__ldapcfg['cert']))
             if self.__ldapcfg['key']:
                 if not os.path.exists(self.__ldapcfg['key']):
-                    print("Error: Can not read LDAP TLS key file",
+                    print(_c("Error: Can not read LDAP TLS key file", "red"),
                           file=sys.stderr)
                     sys.exit(os.EX_SOFTWARE)
                 ldap.set_option(
@@ -434,7 +438,7 @@ class LDAP(object):
                 dbg("LDAP: Set key to {0}".format(self.__ldapcfg['key']))
             if self.__ldapcfg['ca']:
                 if not os.path.exists(self.__ldapcfg['ca']):
-                    print("Error: Can not read LDAP TLS CA file",
+                    print(_c("Error: Can not read LDAP TLS CA file", "red"),
                           file=sys.stderr)
                     sys.exit(os.EX_SOFTWARE)
                 ldap.set_option(
@@ -497,7 +501,8 @@ class LDAP(object):
                     self.__con = None
                     return  # Treat this as being not connected!
         except Exception:
-            print("Error: Can not connect to LDAP server", file=sys.stderr)
+            print(_c("Error: Can not connect to LDAP server", "red"),
+                  file=sys.stderr)
             sys.exit(os.EX_SOFTWARE)
 
         self.connected = True
@@ -534,7 +539,7 @@ class LDAP(object):
                 dbg("LDAP: raw_result={0}".format(raw_result))
                 if raw_result[0] is None:
                     self.__con.abandon(rid)
-                    print("WARN: LDAP search timed out")
+                    print(_c("WARN: LDAP search timed out", "cyan"))
                     return self._result()
                 list_of_results = raw_result[1]
                 dbg("LDAP: list_of_result={0}".format(list_of_results))
@@ -776,8 +781,9 @@ class Manager(object):
                 except KeyError:
                     error = True
 
-                print("DNS domain '{0}':".format(domainname))
-                print("DN: {0}".format(dn))
+                print("DNS domain '" + _c("{0}".format(domainname), "blue") +
+                      "':")
+                print("DN: " + _c("{0}".format(dn), "yellow"))
 
                 if not error:
                     # Retrieve all DKIMSelectors
@@ -793,12 +799,13 @@ class Manager(object):
 
                         if 'DKIMActive' in ldap_object2[1] and \
                                 ldap_object2[1]['DKIMActive'][0] == "TRUE":
-                            status = " (active)"
+                            status = " (" + _c("active", "red") + ")"
                         else:
                             status = ""
                         for dkimselector in iter(dkimselectors):
-                            print("- DKIMSelector: {0}{1}".format(
-                                dkimselector, status))
+                            print("- DKIMSelector: " +
+                                  _c("{0}".format(dkimselector), "magenta") +
+                                  "{0}".format(status))
 
     # noinspection PyPropertyAccess
     def cmd_create(self, domainname=None):
@@ -819,19 +826,20 @@ class Manager(object):
 
         if cmd.config.selectorname and not domainname:
             if len(cmd.config.domain) > 1:
-                print("Error: Too many domains specified", file=sys.stderr)
+                print(_c("Error: Too many domains specified", "red"),
+                      file=sys.stderr)
                 sys.exit(os.EX_SOFTWARE)
             if len(cmd.config.selectorname) > 1:
-                print("Error: Please specify only one 'selectorname'",
-                      file=sys.stderr)
+                print(_c("Error: Please specify only one 'selectorname'",
+                         "red"), file=sys.stderr)
                 sys.exit(os.EX_SOFTWARE)
             selector = cmd.config.selectorname[0]
 
             # Get DN suffix for the new selector object
             list_of_results = lh.search(cmd.config.domain[0])
             if len(list_of_results) == 0:
-                print("Error: Domain '{0}' does not exist".format(
-                    cmd.config.domain[0]), file=sys.stderr)
+                print(_c("Error: Domain '{0}' does not exist".format(
+                    cmd.config.domain[0]), "red"), file=sys.stderr)
                 sys.exit(os.EX_SOFTWARE)
             ldap_object = list_of_results[0]
             dn = ldap_object[0]
@@ -842,8 +850,8 @@ class Manager(object):
                 search_filter="(&(objectClass=DKIM)(DKIMSelector={0}))".format(
                     selector), base=dn)
             if len(list_of_results) != 0:
-                print("Error: Object for selector '{0}' already exists".format(
-                    selector), file=sys.stderr)
+                print(_c("Error: Object for selector '{0}' already "
+                         "exists".format(selector), "red"), file=sys.stderr)
                 sys.exit(os.EX_SOFTWARE)
 
             # Generate RSA certificate
@@ -872,7 +880,8 @@ class Manager(object):
                 dbg("cmd.config.create: domain={0}".format(domain))
                 list_of_results = lh.search(domain)
                 if len(list_of_results) == 0:
-                    print("Error: There do not exist any domains yet")
+                    print(_c("Error: There do not exist any domains yet",
+                             "red"))
                     sys.exit(os.EX_SOFTWARE)
                 for ldap_object in iter(list_of_results):
                     dbg("cmd.config.create: ldap_object={0}".format(
@@ -909,8 +918,8 @@ class Manager(object):
                             try:
                                 sel.parse()
                             except SelectorParseError:
-                                print("Error: 'selectorformat' is invalid",
-                                      file=sys.stderr)
+                                print(_c("Error: 'selectorformat' is "
+                                         "invalid", "red"), file=sys.stderr)
                                 sys.exit(os.EX_SOFTWARE)
 
                             dbg("cmd.config.create: sel.name={0}".format(
@@ -925,7 +934,8 @@ class Manager(object):
                                 identity)
 
         else:
-            print("WARN: No 'selectorformat' defined", file=sys.stderr)
+            print(_c("WARN: No 'selectorformat' defined", "cyan"),
+                  file=sys.stderr)
 
     def cmd_delete(self, selectorname=None):
         """--delete command
@@ -951,8 +961,8 @@ class Manager(object):
                 search_filter="(&(objectClass=DKIM)(DKIMSelector={0}))".format(
                     selector))
             if len(list_of_results) == 0:
-                print("WARN: Selector '{0}' does not exist".format(selector),
-                      file=sys.stderr)
+                print(_c("WARN: Selector '{0}' does not exist".format(
+                    selector), "cyan"), file=sys.stderr)
                 continue
 
             ldap_object = list_of_results[0]
@@ -962,8 +972,8 @@ class Manager(object):
             dn = ldap_object[0]
             if "DKIMActive" in ldap_object[1] and \
                     ldap_object[1]['DKIMActive'][0] == "TRUE":
-                print("WARN: Can not remove active DKIM key from LDAP",
-                      file=sys.stderr)
+                print(_c("WARN: Can not remove active DKIM key from LDAP",
+                         "cyan"), file=sys.stderr)
                 continue
 
             print("DN: {0}".format(dn))
@@ -1002,8 +1012,8 @@ class Manager(object):
 
         if not selectorname:
             if len(cmd.config.selectorname) > 1:
-                print("Error: Please specify only one 'selectorname'",
-                      file=sys.stderr)
+                print(_c("Error: Please specify only one 'selectorname'",
+                         "red"), file=sys.stderr)
                 sys.exit(os.EX_SOFTWARE)
             selectorname = cmd.config.selectorname[0]
 
@@ -1012,8 +1022,8 @@ class Manager(object):
                 selectorname))
 
         if len(list_of_results) == 0:
-            print("WARN: Selector '{0}' does not exist".format(
-                selectorname), file=sys.stderr)
+            print(_c("WARN: Selector '{0}' does not exist".format(
+                selectorname), "cyan"), file=sys.stderr)
             sys.exit(os.EX_SOFTWARE)
 
         ldap_object = list_of_results[0]
@@ -1084,7 +1094,7 @@ class Manager(object):
         lh = self.__ldap
 
         if cmd.config.selectorname and len(cmd.config.selectorname) > 1:
-            print("Error: Please specify only one 'selectorname'",
+            print(_c("Error: Please specify only one 'selectorname'", "red"),
                   file=sys.stderr)
             sys.exit(os.EX_SOFTWARE)
 
@@ -1095,7 +1105,7 @@ class Manager(object):
             search_filter="(&(objectClass=DKIM)(DKIMSelector={0}))".format(
                 selectorname))
         if len(list_of_results) == 0:
-            print("Error: Specified DKIM selector does not exist",
+            print(_c("Error: Specified DKIM selector does not exist", "red"),
                   file=sys.stderr)
             sys.exit(os.EX_SOFTWARE)
 
@@ -1112,8 +1122,8 @@ class Manager(object):
                 matchobj.group(1)))
             parent_dn = matchobj.group(1).lstrip()
         else:
-            print("Error: Can not determ the base URI for the given "
-                  "selector", file=sys.stderr)
+            print(_c("Error: Can not determ the base URI for the given "
+                     "selector", "red"), file=sys.stderr)
             sys.exit(os.EX_SOFTWARE)
 
         # Find old DKIM key, which currently has the DKIMActive attribute set
@@ -1186,8 +1196,8 @@ class Manager(object):
                         matchobj.group(1)))
                     parent_dn = matchobj.group(1).lstrip()
                 else:
-                    print("Error: Can not determ the base URI for the given "
-                          "selector", file=sys.stderr)
+                    print(_c("Error: Can not determ the base URI for the given "
+                             "selector", "red"), file=sys.stderr)
                     sys.exit(os.EX_SOFTWARE)
 
                 # Get the domainname from parent DN
@@ -1197,8 +1207,8 @@ class Manager(object):
                 try:
                     domainname = ldap_object[1][cf.ldap['domain']][0]
                 except KeyError:
-                    print("Error: Can not get domainname from object",
-                          file=sys.stderr)
+                    print(_c("Error: Can not get domainname from object",
+                             "red"), file=sys.stderr)
                     sys.exit(os.EX_SOFTWARE)
 
                 dns_query = "{0}._domainkey.{1}".format(selector, domainname)
@@ -1213,11 +1223,11 @@ class Manager(object):
                 except dns.resolver.NXDOMAIN:
                     print("TXT: not present")
                 except dns.resolver.NoNameservers:
-                    print("WARN: No nameservers could be reached")
+                    print(_c("WARN: No nameservers could be reached", "cyan"))
 
             else:
-                print("WARN: DKIMSelector '{0}' does not exist".format(
-                    selector))
+                print(_c("WARN: DKIMSelector '{0}' does not exist".format(
+                    selector), "cyan"))
 
         return result
 
@@ -1249,9 +1259,9 @@ class Manager(object):
                 try:
                     domainname = ldap_object[1][cf.ldap['domain']][0]
                 except ValueError:
-                    print("WARN: Domain attribute '{0}' not present in "
-                          "object {1}".format(cf.ldap['domain'], dn),
-                          file=sys.stderr)
+                    print(_c("WARN: Domain attribute '{0}' not present in "
+                             "object {1}".format(cf.ldap['domain'], dn),
+                             "cyan"), file=sys.stderr)
                     continue
                 dbg("cmd.config.rotate: domain '{0}'".format(domainname))
 
@@ -1326,8 +1336,8 @@ class Manager(object):
             try:
                 domainname = ldap_object[1][cf.ldap['domain']][0]
             except ValueError:
-                print("WARN: Domain attribute '{0}' not present in "
-                      "object {1}".format(cf.ldap['domain'], dn),
+                print(_c("WARN: Domain attribute '{0}' not present in "
+                         "object {1}".format(cf.ldap['domain'], dn), "cyan"),
                       file=sys.stderr)
                 continue
             dbg("cmd.config.add_new: domain '{0}'".format(domainname))
@@ -1398,8 +1408,8 @@ class Manager(object):
             try:
                 domainname = ldap_object[1][cf.ldap['domain']][0]
             except ValueError:
-                print("WARN: Domain attribute '{0}' not present in "
-                      "object {1}".format(cf.ldap['domain'], dn),
+                print(_c("WARN: Domain attribute '{0}' not present in "
+                         "object {1}".format(cf.ldap['domain'], dn), "cyan"),
                       file=sys.stderr)
                 continue
             dbg("cmd.config.add_missing: domain '{0}'".format(domainname))
@@ -1435,8 +1445,8 @@ class Manager(object):
             try:
                 domainname = ldap_object[1][cf.ldap['domain']][0]
             except ValueError:
-                print("WARN: Domain attribute '{0}' not present in "
-                      "object {1}".format(cf.ldap['domain'], dn),
+                print(_c("WARN: Domain attribute '{0}' not present in "
+                         "object {1}".format(cf.ldap['domain'], dn), "cyan"),
                       file=sys.stderr)
                 continue
             dbg("cmd.config.add_missing: domain '{0}'".format(domainname))
@@ -1570,6 +1580,27 @@ class Manager(object):
             hour=ct_hour, minute=ct_min, second=ct_sec)
 
 
+def _c(*args):
+    if have_color and USE_COLOR:
+        color = ""
+
+        if len(args) == 2:
+            if args[1] == "red":
+                color = Fore.RED
+            elif args[1] == "blue":
+                color = Fore.BLUE
+            elif args[1] == "magenta":
+                color = Fore.MAGENTA
+            elif args[1] == "cyan":
+                color = Fore.CYAN
+            elif args[1] == "yellow":
+                color = Fore.YELLOW
+
+        return Style.BRIGHT + color + args[0] + Style.RESET_ALL
+    else:
+        return args[0]
+
+
 def verbose(msg):
     """Verbose ourput to terminal
     """
@@ -1668,8 +1699,8 @@ if __name__ == "__main__":
     except Exception as e:
         if DEBUG:
             traceback.print_exc()
-        print("Error: Program unexpectedly terminated: {0}".format(e),
-              file=sys.stderr)
+        print(_c("Error: Program unexpectedly terminated: {0}".format(e),
+                 "red"), file=sys.stderr)
         sys.exit(os.EX_SOFTWARE)
 
     sys.exit(os.EX_OK)
