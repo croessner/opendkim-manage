@@ -74,6 +74,7 @@ class GlobalCfg(object):
     """
     delete_not_before = 365
     expire_after = 6
+    term_bg = "dark"
 
 
 class CfgFile(object):
@@ -95,7 +96,7 @@ class CfgFile(object):
         # All known options
         global_opts = (
             "delete_not_before", "expire_after", "selectorformat",
-            "use_dkim_identity"
+            "use_dkim_identity", "terminal_background"
         )
         ldap_opts = (
             "uri", "bindmethod", "saslmech", "filter", "domain",
@@ -1559,6 +1560,10 @@ class Manager(object):
 def _c(*args):
     if have_color and USE_COLOR:
         color = ""
+        if GlobalCfg.term_bg == "dark":
+            style = Style.BRIGHT
+        else:
+            style = Style.NORMAL
 
         if len(args) == 2:
             if args[1] == "red":
@@ -1572,7 +1577,7 @@ def _c(*args):
             elif args[1] == "yellow":
                 color = Fore.YELLOW
 
-        return Style.BRIGHT + color + args[0] + Style.RESET_ALL
+        return style + color + args[0] + Style.RESET_ALL
     else:
         return args[0]
 
@@ -1582,7 +1587,11 @@ def verbose(msg):
     """
     if VERBOSE:
         if have_color and USE_COLOR:
-            print(Fore.YELLOW, end="")
+            if GlobalCfg.term_bg == "dark":
+                style = Style.BRIGHT
+            else:
+                style = Style.NORMAL
+            print(style, Fore.YELLOW, end="")
         print(msg)
         if have_color and USE_COLOR:
             print(Style.RESET_ALL, end="")
@@ -1599,12 +1608,18 @@ def dbg(msg):
     the_method = stack[1][0].f_code.co_name
 
     if DEBUG:
+        style = ""
+
         if have_color and USE_COLOR:
+            if GlobalCfg.term_bg == "dark":
+                style = Style.BRIGHT
+            else:
+                style = Style.NORMAL
             _a1 = Fore.GREEN
             _a2 = Style.RESET_ALL
         else:
             _a1 = _a2 = ""
-        print(_a1 + "DEBUG: [{0}/{1}]".format(
+        print(style + _a1 + "DEBUG: [{0}/{1}]".format(
             the_class, the_method) + _a2 + " {0}".format(msg))
 
 
@@ -1636,6 +1651,12 @@ def main():
     if cmd.config.expire_after:
         GlobalCfg.expire_after = cmd.config.expire_after
 
+    if cf.globals['terminal_background'] in (None, "dark"):
+        GlobalCfg.term_bg = "dark"
+    else:
+        GlobalCfg.term_bg = "light"
+
+    dbg(GlobalCfg.__dict__)
     dbg(cf.ldap)
     dbg(cf.globals)
 
