@@ -400,16 +400,16 @@ class LDAP(object):
             if self.__ldapcfg['reqcert']:
                 if self.__ldapcfg['reqcert'] == "never":
                     reqcert = ldap.OPT_X_TLS_NEVER
-                    dbg("LDAP: reqcert=NEVER")
+                    dbg("reqcert=NEVER")
                 elif self.__ldapcfg['reqcert'] == "allow":
                     reqcert = ldap.OPT_X_TLS_ALLOW
-                    dbg("LDAP: reqcert=ALLOW")
+                    dbg("reqcert=ALLOW")
                 elif self.__ldapcfg['reqcert'] == "try":
                     reqcert = ldap.OPT_X_TLS_TRY
-                    dbg("LDAP: reqcert=TRY")
+                    dbg("reqcert=TRY")
                 elif self.__ldapcfg['reqcert'] == "demand":
                     reqcert = ldap.OPT_X_TLS_DEMAND
-                    dbg("LDAP: reqcert=DEMAND")
+                    dbg("reqcert=DEMAND")
                 else:
                     print(_c("Error: Unsupport 'reqcert' argument", "red"),
                           file=sys.stderr)
@@ -419,7 +419,7 @@ class LDAP(object):
             if self.__ldapcfg['ciphers']:
                 ldap.set_option(
                     ldap.OPT_X_TLS_CIPHER_SUITE, self.__ldapcfg['ciphers'])
-                dbg("LDAP: set ciphers")
+                dbg("set ciphers")
 
             if self.__ldapcfg['cert']:
                 if not os.path.exists(self.__ldapcfg['cert']):
@@ -428,7 +428,7 @@ class LDAP(object):
                     sys.exit(os.EX_SOFTWARE)
                 ldap.set_option(
                     ldap.OPT_X_TLS_CERTFILE, self.__ldapcfg['cert'])
-                dbg("LDAP: Set cert to {0}".format(self.__ldapcfg['cert']))
+                dbg("Set cert to {0}".format(self.__ldapcfg['cert']))
             if self.__ldapcfg['key']:
                 if not os.path.exists(self.__ldapcfg['key']):
                     print(_c("Error: Can not read LDAP TLS key file", "red"),
@@ -436,7 +436,7 @@ class LDAP(object):
                     sys.exit(os.EX_SOFTWARE)
                 ldap.set_option(
                     ldap.OPT_X_TLS_KEYFILE, self.__ldapcfg['key'])
-                dbg("LDAP: Set key to {0}".format(self.__ldapcfg['key']))
+                dbg("Set key to {0}".format(self.__ldapcfg['key']))
             if self.__ldapcfg['ca']:
                 if not os.path.exists(self.__ldapcfg['ca']):
                     print(_c("Error: Can not read LDAP TLS CA file", "red"),
@@ -444,9 +444,9 @@ class LDAP(object):
                     sys.exit(os.EX_SOFTWARE)
                 ldap.set_option(
                     ldap.OPT_X_TLS_CACERTFILE, self.__ldapcfg['ca'])
-                dbg("LDAP: Set ca to {0}".format(self.__ldapcfg['ca']))
+                dbg("Set ca to {0}".format(self.__ldapcfg['ca']))
 
-            dbg("LDAP: TLS enabled")
+            dbg("TLS enabled")
             self.__tls = True
 
             if self.__ldapcfg['bindmethod'] == "sasl":
@@ -457,24 +457,24 @@ class LDAP(object):
                                 self.__ldapcfg['binddn'],
                                 self.__ldapcfg['bindpw']
                             )
-                            dbg("LDAP: SASL/DIGEST-MD5")
+                            dbg("SASL/DIGEST-MD5")
                         elif self.__ldapcfg['saslmech'].lower() == "cram-md5":
                             self.__auth_token = ldap.sasl.cram_md5(
                                 self.__ldapcfg['binddn'],
                                 self.__ldapcfg['bindpw']
                             )
-                            dbg("LDAP: SASL/CRAM-MD5")
+                            dbg("SASL/CRAM-MD5")
                     if self.__ldapcfg['authz_id']:
                         if self.__ldapcfg['saslmech'].lower() == "external":
                             self.__auth_token = ldap.sasl.external(
                                 self.__ldapcfg['authz_id'])
-                            dbg("LDAP: SASL/EXTERNAL")
+                            dbg("SASL/EXTERNAL")
                         elif self.__ldapcfg['saslmech'].lower() == "gssapi":
                             self.__auth_token = ldap.sasl.gssapi(
                                 self.__ldapcfg['authz_id'])
-                            dbg("LDAP: SASL/GSSAPI")
+                            dbg("SASL/GSSAPI")
 
-                    dbg("LDAP: SASL enabled")
+                    dbg("SASL enabled")
                     self.__sasl = True
 
         self.configured = True
@@ -486,18 +486,18 @@ class LDAP(object):
             self.__urlparts.urlscheme, self.__urlparts.hostport)
         try:
             self.__con = ldap.initialize(con_string)
-            dbg("LDAP: connected to {0}".format(con_string))
+            dbg("connected to {0}".format(con_string))
             if self.__tls:
                 self.__con.start_tls_s()
-                dbg("LDAP: STARTTLS")
+                dbg("STARTTLS")
             if self.__sasl:
                 self.__con.sasl_interactive_bind_s("", self.__auth_token)
-                dbg("LDAP: SASL AUTH")
+                dbg("SASL AUTH")
             else:
                 if self.__ldapcfg['binddn'] and self.__ldapcfg['bindpw']:
                     self.__con.simple_bind_s(
                         self.__ldapcfg['binddn'], self.__ldapcfg['bindpw'])
-                    dbg("LDAP: Simple bind")
+                    dbg("Simple bind")
                 else:
                     self.__con = None
                     return  # Treat this as being not connected!
@@ -528,7 +528,7 @@ class LDAP(object):
                     search_filter = self.__ldapcfg['filter'] % domain
                 if not base:
                     base = self.__urlparts.dn
-                dbg("LDAP: filter={0}".format(search_filter))
+                dbg("filter={0}".format(search_filter))
                 rid = self.__con.search(base,
                                         self.__urlparts.scope,
                                         search_filter,
@@ -537,13 +537,13 @@ class LDAP(object):
                                          'DKIMActive',
                                          'CreateTimestamp'])
                 raw_result = self.__con.result(rid, True, 60)
-                dbg("LDAP: raw_result={0}".format(raw_result))
+                dbg("raw_result={0}".format(raw_result))
                 if raw_result[0] is None:
                     self.__con.abandon(rid)
                     print(_c("WARN: LDAP search timed out", "cyan"))
                     return self._result()
                 list_of_results = raw_result[1]
-                dbg("LDAP: list_of_result={0}".format(list_of_results))
+                dbg("list_of_result={0}".format(list_of_results))
                 return list_of_results
             else:
                 return None
@@ -571,7 +571,7 @@ class LDAP(object):
             attrs['DKIMIdentity'] = identity
 
         ldif = modlist.addModlist(attrs)
-        dbg("LDAP: ldif={0}".format(ldif))
+        dbg("ldif={0}".format(ldif))
 
         if not self.configured:
             self.initialize()
