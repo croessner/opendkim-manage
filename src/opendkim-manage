@@ -533,6 +533,7 @@ class LDAP(object):
                                         self.__urlparts.scope,
                                         search_filter,
                                         [self.__ldapcfg['domain'],
+                                         'DKIMDomain',
                                          'DKIMSelector',
                                          'DKIMActive',
                                          'CreateTimestamp'])
@@ -775,7 +776,6 @@ class Manager(object):
 
                 error = False
 
-                # ldap_object: (DN, result-dict)
                 try:
                     dn = ldap_object[0]
                     domainname = ldap_object[1][cf.ldap['domain']][0]
@@ -1168,13 +1168,8 @@ class Manager(object):
         if selectorlist:
             assert isinstance(selectorlist, list)
 
-        cf = self.__cf
         cmd = self.__cmd
         lh = self.__ldap
-
-        # Try to find the parent container for the given selector
-        pat = r"^DKIMSelector=[^,]+,(.+)"
-        prog = re.compile(pat, flags=re.UNICODE | re.IGNORECASE)
 
         # Store success/fail status for each query
         result = dict()
@@ -1190,31 +1185,11 @@ class Manager(object):
                     selector))
             if len(list_of_results) > 0:
                 ldap_object = list_of_results[0]
-                dn = ldap_object[0]
-                matchobj = prog.match(dn)
-                if matchobj and matchobj.group(1):
-                    dbg("matchobj.group(1)={0}".format(
-                        matchobj.group(1)))
-                    parent_dn = matchobj.group(1).lstrip()
-                else:
-                    print(_c("Error: Can not determ the base URI for the given "
-                             "selector", "red"), file=sys.stderr)
-                    sys.exit(os.EX_SOFTWARE)
-
-                # Get the domainname from parent DN
-                list_of_results = lh.search(
-                    search_filter="(!(objectClass=DKIM))", base=parent_dn)
-                ldap_object = list_of_results[0]
-                try:
-                    domainname = ldap_object[1][cf.ldap['domain']][0]
-                except KeyError:
-                    print(_c("Error: Can not get domainname from object",
-                             "red"), file=sys.stderr)
-                    sys.exit(os.EX_SOFTWARE)
+                domainname = ldap_object[1]['DKIMDomain'][0]
 
                 dns_query = "{0}._domainkey.{1}".format(selector, domainname)
 
-                print("Query {0}".format(dns_query))
+                print("Query " + _c("{0}".format(dns_query), "yellow"))
                 try:
                     answers = dns.resolver.query(dns_query, "TXT")
                     for rdata in answers:
