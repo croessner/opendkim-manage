@@ -27,6 +27,7 @@ import argparse
 import ConfigParser
 import datetime
 import hashlib
+import inspect
 import os
 import random
 import re
@@ -765,9 +766,9 @@ class Manager(object):
         for domain in iter(domains):
             # Get DN for a domain as a new search base
             list_of_results = lh.search(domain)
-            dbg("cmd.config.list: list_of_results={0}".format(list_of_results))
+            dbg("list_of_results={0}".format(list_of_results))
             for ldap_object in iter(list_of_results):
-                dbg("cmd.config.list: ldap_object={0}".format(ldap_object))
+                dbg("ldap_object={0}".format(ldap_object))
                 dn = None
                 domainname = None
                 dkimselectors = list()
@@ -790,7 +791,7 @@ class Manager(object):
                     list_of_results2 = lh.search(
                         search_filter="(objectClass=DKIM)", base=dn)
                     for ldap_object2 in iter(list_of_results2):
-                        dbg("cmd.config.list: ldap_object2={0}".format(
+                        dbg("ldap_object2={0}".format(
                             ldap_object2))
                         try:
                             dkimselectors = ldap_object2[1]['DKIMSelector']
@@ -843,7 +844,7 @@ class Manager(object):
                 sys.exit(os.EX_SOFTWARE)
             ldap_object = list_of_results[0]
             dn = ldap_object[0]
-            dbg("cmd.config.create: dn={0}".format(dn))
+            dbg("dn={0}".format(dn))
 
             # Make sure, we do not have an LDAP object already
             list_of_results = lh.search(
@@ -877,14 +878,14 @@ class Manager(object):
                 domains = cmd.config.domain
 
             for domain in iter(domains):
-                dbg("cmd.config.create: domain={0}".format(domain))
+                dbg("domain={0}".format(domain))
                 list_of_results = lh.search(domain)
                 if len(list_of_results) == 0:
                     print(_c("Error: There do not exist any domains yet",
                              "red"))
                     sys.exit(os.EX_SOFTWARE)
                 for ldap_object in iter(list_of_results):
-                    dbg("cmd.config.create: ldap_object={0}".format(
+                    dbg("ldap_object={0}".format(
                         ldap_object))
 
                     error = False
@@ -922,7 +923,7 @@ class Manager(object):
                                          "invalid", "red"), file=sys.stderr)
                                 sys.exit(os.EX_SOFTWARE)
 
-                            dbg("cmd.config.create: sel.name={0}".format(
+                            dbg("sel.name={0}".format(
                                 sel.name))
                             selector = sel.name
 
@@ -966,7 +967,7 @@ class Manager(object):
                 continue
 
             ldap_object = list_of_results[0]
-            dbg("cmd.config.delete: ldap_object={0}".format(
+            dbg("ldap_object={0}".format(
                 ldap_object))
 
             dn = ldap_object[0]
@@ -1030,17 +1031,17 @@ class Manager(object):
         dn = ldap_object[0]
         create_timestamp = ldap_object[1]['createTimestamp'][0]
 
-        dbg("cmd.config.age: "
+        dbg(""
             "dn={0}, create_timestamp={1}".format(dn, create_timestamp))
 
         ct = self.convert_ldaptime_to_datetime(create_timestamp)
-        dbg("cmd.config.age: ct={0}".format(ct))
+        dbg("ct={0}".format(ct))
 
         if days:
             cmp_age = days
         else:
             cmp_age = cmd.config.age
-        dbg("cmd.config.age: cmp_age={0}".format(cmp_age))
+        dbg("cmp_age={0}".format(cmp_age))
 
         # Older than or younger than logic flag
         negative = False
@@ -1054,25 +1055,25 @@ class Manager(object):
             if cmp_age < 0:
                 cmp_age *= -1
             dt = datetime.timedelta(days=cmp_age)
-        dbg("cmd.config.age: dt={0}".format(dt))
+        dbg("dt={0}".format(dt))
 
         # Check, if key is more than X days old
         if not negative or cmp_age is None:
-            dbg("cmd.config.age: positive age")
+            dbg("positive age")
             if datetime.datetime.now() - dt > ct:
-                dbg("cmd.config.age: Key is older")
+                dbg("Key is older")
                 return True
             else:
-                dbg("cmd.config.age: Key is younger")
+                dbg("Key is younger")
                 return False
 
         if negative:
-            dbg("cmd.config.age: negative age")
+            dbg("negative age")
             if datetime.datetime.now() - dt < ct:
-                dbg("cmd.config.age: Key is younger")
+                dbg("Key is younger")
                 return True
             else:
-                dbg("cmd.config.age: Key is older")
+                dbg("Key is older")
                 return False
 
     def cmd_active(self, selectorname=None):
@@ -1118,7 +1119,7 @@ class Manager(object):
 
         matchobj = prog.match(dn)
         if matchobj and matchobj.group(1):
-            dbg("cmd.config.active: matchobj.group(1)={0}".format(
+            dbg("matchobj.group(1)={0}".format(
                 matchobj.group(1)))
             parent_dn = matchobj.group(1).lstrip()
         else:
@@ -1138,7 +1139,7 @@ class Manager(object):
             # Do not re-add the attribute, if the selector points to a DKIM
             # key that already is active
             if ldap_object[0] == dn:
-                dbg("cmd.config.active: DKIMActive attribute already set "
+                dbg("DKIMActive attribute already set "
                     "to TRUE for dn: {0}".format(dn))
                 dn_with_dkimactive_true = True
                 continue
@@ -1192,7 +1193,7 @@ class Manager(object):
                 dn = ldap_object[0]
                 matchobj = prog.match(dn)
                 if matchobj and matchobj.group(1):
-                    dbg("cmd.config.testkey: matchobj.group(1)={0}".format(
+                    dbg("matchobj.group(1)={0}".format(
                         matchobj.group(1)))
                     parent_dn = matchobj.group(1).lstrip()
                 else:
@@ -1263,7 +1264,7 @@ class Manager(object):
                              "object {1}".format(cf.ldap['domain'], dn),
                              "cyan"), file=sys.stderr)
                     continue
-                dbg("cmd.config.rotate: domain '{0}'".format(domainname))
+                dbg("domain '{0}'".format(domainname))
 
                 # Get full list of selector objects per domain
                 list_of_results2 = lh.search(
@@ -1274,17 +1275,17 @@ class Manager(object):
                 for ldap_object2 in iter(list_of_results2):
                     dn_sel = ldap_object2[0]
                     selectorname = ldap_object2[1]['DKIMSelector'][0]
-                    dbg("cmd.config.rotate: DN={0}".format(dn_sel))
+                    dbg("DN={0}".format(dn_sel))
 
                     if "DKIMActive" in ldap_object2[1] and \
                             ldap_object2[1]['DKIMActive'][0] == "TRUE":
-                        dbg("cmd.config.rotate: Found DKIMActive TRUE")
+                        dbg("Found DKIMActive TRUE")
                         active_dt = self.convert_ldaptime_to_datetime(
                             ldap_object2[1]['createTimestamp'][0])
                         continue
                     create_timestamp = ldap_object2[1]['createTimestamp'][0]
 
-                    dbg("cmd.config.rotate: "
+                    dbg(""
                         "dn={0}, create_timestamp={1}".format(
                          dn_sel, create_timestamp))
 
@@ -1295,26 +1296,26 @@ class Manager(object):
                     ))
 
                 dts = sorted(dts, key=itemgetter(2), reverse=True)
-                dbg("cmd.config.rotate: dts={0}".format(dts))
+                dbg("dts={0}".format(dts))
 
                 valid_key = None
                 for i, selectorname in enumerate([x[1] for x in iter(dts)]):
-                    dbg("cmd.config.rotate: Checking selector '{0}'".format(
+                    dbg("Checking selector '{0}'".format(
                         selectorname))
                     # Check if the current key is newer than the active key
                     if active_dt and dts[i][2] > active_dt:
                         result = self.cmd_testkey(selectorlist=[selectorname])
                         if result[selectorname]:
-                            dbg("cmd.config.rotate: Key found in DNS")
+                            dbg("Key found in DNS")
                             valid_key = i
                             break
-                        dbg("cmd.config.rotate: Key not yet published in DNS")
+                        dbg("Key not yet published in DNS")
                     else:
-                        dbg("cmd.config.rotate: Selector '{0}' is younger than "
+                        dbg("Selector '{0}' is younger than "
                             "the active selector".format(selectorname))
 
                 if valid_key is not None:
-                    dbg("cmd.config.rotate: Setting DKIMActive to TRUE for "
+                    dbg("Setting DKIMActive to TRUE for "
                         "'{0}'".format(dts[valid_key][1]))
                     self.cmd_active(selectorname=dts[valid_key][1])
 
@@ -1476,13 +1477,13 @@ class Manager(object):
             if active_dt:
                 for selectorname, dt in iter(dts):
                     if dt < active_dt:
-                        dbg("cmd.config.auto: Selector {0} is older than "
+                        dbg("Selector {0} is older than "
                             "active key".format(selectorname))
                         if self._delete_not_before(selectorname=selectorname):
-                            dbg("cmd.config.auto: Going to remove the key")
+                            dbg("Going to remove the key")
                             self.cmd_delete(selectorname=selectorname)
                         else:
-                            dbg("cmd.config.auto: --delete-not-before not "
+                            dbg("--delete-not-before not "
                                 "reached. Not removing this key")
 
     def _expire_after(self, selectorname=None):
@@ -1615,13 +1616,21 @@ def verbose(msg):
 def dbg(msg):
     """Helper function for the debug mode
     """
+    stack = inspect.stack()
+    try:
+        the_class = stack[1][0].f_locals["self"].__class__
+    except KeyError:
+        the_class = "<unknown>"
+    the_method = stack[1][0].f_code.co_name
+
     if DEBUG:
         if have_color and USE_COLOR:
             _a1 = Fore.GREEN
             _a2 = Style.RESET_ALL
         else:
             _a1 = _a2 = ""
-        print(_a1 + "DEBUG:" + _a2 + " {0}".format(msg))
+        print(_a1 + "DEBUG: [{0}/{1}]".format(
+            the_class, the_method) + _a2 + " {0}".format(msg))
 
 
 def main():
