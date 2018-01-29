@@ -10,5 +10,5 @@ setup(
     author='Christian Roessner',
     author_email='c@roessner.co',
     description='OpenDKIM management tool for key rollover',
-    install_requires=['dns', 'ldap', 'M2Crypto']
+    install_requires=['dns', 'ldap', 'M2Crypto', 'colorama']
 )
