@@ -72,7 +72,6 @@ INTERACT = False
 class GlobalCfg(object):
     """Global configuration options
     """
-    delete_not_before = 86400
     expire_after = 365
     term_bg = "dark"
 
@@ -95,8 +94,8 @@ class CfgFile(object):
 
         # All known options
         global_opts = (
-            "delete_not_before", "expire_after", "selectorformat",
-            "use_dkim_identity", "terminal_background"
+            "expire_after", "selectorformat", "use_dkim_identity",
+            "terminal_background"
         )
         ldap_opts = (
             "uri", "bindmethod", "saslmech", "filter", "domain",
@@ -134,7 +133,7 @@ class CfgFile(object):
                 print(_c("Error: Unknown option '{0}' in section "
                          "'global'".format(opt), "red"), file=sys.stderr)
                 sys.exit(os.EX_SOFTWARE)
-            if opt == "delete_not_before" or opt == "expire_after":
+            if opt == "expire_after":
                 try:
                     self.globals[opt] = self.__config.getint(s, opt)
                 except ValueError:
@@ -245,13 +244,6 @@ class Cmd(object):
                             action="store_true",
                             help="Short for --add-missing, --add-new, --rotate "
                                  "and --delete")
-        parser.add_argument("--delete-not-before", "-b",
-                            default=None,
-                            type=int,
-                            help="Minimum number of seconds for a DKIM key "
-                                 "before it can be deleted from LDAP (default: "
-                                 "{0} seconds)".format(
-                                    GlobalCfg.delete_not_before))
         parser.add_argument("--expire-after", "-e",
                             default=None,
                             type=int,
@@ -1464,12 +1456,7 @@ class Manager(object):
                     if dt < active_dt:
                         dbg("Selector {0} is older than "
                             "active key".format(selectorname))
-                        if self._delete_not_before(selectorname=selectorname):
-                            dbg("Going to remove the key")
-                            self.cmd_delete(selectorname=selectorname)
-                        else:
-                            dbg("--delete-not-before not "
-                                "reached. Not removing this key")
+                        self.cmd_delete(selectorname=selectorname)
 
     def _expire_after(self, selectorname=None):
         """If the remaining days for a DKIM keys are below 'days'left',
@@ -1487,27 +1474,6 @@ class Manager(object):
 
         if self.cmd_age(days=dl, selectorname=selectorname):
             dbg("Key expired")
-            return True
-
-        return False
-
-    def _delete_not_before(self, selectorname=None):
-        """A DKIM key must be at least a certain amount of days old, before
-        it can be switched off from active and being deleted.
-
-        :param selectorname: The name of a selector
-        :return: Boolean. True, if a DKIM key object may be ready for deletion
-        """
-        dbg("Running helper, selectorname={0}".format(selectorname))
-
-        if selectorname:
-            assert isinstance(selectorname, str)
-
-        dt = datetime.timedelta(seconds=GlobalCfg.delete_not_before)
-        dbg("seconds={0}".format(dt))
-
-        if self.cmd_age(days_delta=dt, selectorname=selectorname):
-            dbg("Key can be deleted")
             return True
 
         return False
@@ -1650,12 +1616,6 @@ def main():
         print("INFO: Interactive mode: ON")
     if DEBUG:
         print("INFO: Debugging turned: ON")
-
-    # Set delete_not_before or its default
-    if cf.globals['delete_not_before'] and not cmd.config.delete_not_before:
-        GlobalCfg.delete_not_before = cf.globals['delete_not_before']
-    if cmd.config.delete_not_before:
-        GlobalCfg.delete_not_before = cmd.config.delete_not_before
 
     # Set expire_after or its default
     if cf.globals['expire_after'] and not cmd.config.expire_after:
