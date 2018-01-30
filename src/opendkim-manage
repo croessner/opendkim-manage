@@ -980,6 +980,8 @@ class Manager(object):
 
             if self.ask("Do you really want to delete the DKIM key from LDAP?"):
                 lh.delete_dkim_key(dn)
+                if VERBOSE:
+                    print("DN: {0} deleted".format(dn))
 
     def cmd_age(self, days=None, days_delta=None, selectorname=None):
         """--age command
@@ -1143,16 +1145,20 @@ class Manager(object):
                 dn_with_dkimactive_true = True
                 continue
             if INTERACT:
-                print("DKIMActive=FALSE DN: {0}".format(ldap_object[0]))
+                print("DN: {0}".format(ldap_object[0]))
             if self.ask(
                     "Do you really want to disable this DKIM key?"):
                 lh.unset_active(ldap_object[0])
+                if VERBOSE:
+                    print("DN '{0}' now inactive".format(dn))
 
         if not dn_with_dkimactive_true:
             if INTERACT:
-                print("DKIMActive TRUE DN: {0}".format(dn))
+                print("DN: {0}".format(dn))
             if self.ask("Do you want to enable this DKIM key?"):
                 lh.set_active(dn)
+                if VERBOSE:
+                    print("DN '{0}' now active".format(dn))
 
     def cmd_testkey(self, selectorlist=None):
         """--testkey command
@@ -1190,15 +1196,18 @@ class Manager(object):
 
                 dns_query = "{0}._domainkey.{1}".format(selector, domainname)
 
-                print("Query " + _c("{0}".format(dns_query), "yellow"))
+                if VERBOSE:
+                    print("Query " + _c("{0}".format(dns_query), "yellow"))
                 try:
                     answers = dns.resolver.query(dns_query, "TXT")
                     for rdata in answers:
                         if not result[selector]:
                             result[selector] = True
-                        print("TXT: {0}".format("".join(rdata.strings)))
+                        if VERBOSE:
+                            print("TXT: {0}".format("".join(rdata.strings)))
                 except dns.resolver.NXDOMAIN:
-                    print("TXT: not present")
+                    if VERBOSE:
+                        print("TXT: not present")
                 except dns.resolver.NoNameservers:
                     print(_c("WARN: No nameservers could be reached", "cyan"))
 
