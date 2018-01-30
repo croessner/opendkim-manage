@@ -1309,6 +1309,7 @@ class Manager(object):
         # Iterate through all domains
         list_of_results = lh.search()
         for ldap_object in iter(list_of_results):
+            valid_key = False
             dn = ldap_object[0]
             try:
                 domainname = ldap_object[1][cf.ldap['domain']][0]
@@ -1334,7 +1335,8 @@ class Manager(object):
                     dbg("cmd.config.add_new: Found active DKIM key")
                     if not self._expire_after(selectorname=selectorname):
                         dbg("cmd.config.add_new: Key is still fine")
-                        return
+                        valid_key = True
+                        break
                     active_dt = self.convert_ldaptime_to_datetime(
                         ldap_object2[1]['createTimestamp'][0])
                     continue
@@ -1348,6 +1350,9 @@ class Manager(object):
                     selectorname,
                     self.convert_ldaptime_to_datetime(create_timestamp)
                 ))
+
+            if valid_key:
+                continue
 
             dts = sorted(dts, key=itemgetter(1), reverse=True)
             dbg("cmd.config.add_new: dts={0}".format(dts))
