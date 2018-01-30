@@ -1473,6 +1473,8 @@ class Manager(object):
         :param selectorname: The name of a selector
         :return: Boolean. True, if a new key should be created and false, if not
         """
+        dbg("Running helper, selectorname={0}".format(selectorname))
+
         if selectorname:
             assert isinstance(selectorname, str)
 
@@ -1491,6 +1493,8 @@ class Manager(object):
         :param selectorname: The name of a selector
         :return: Boolean. True, if a DKIM key object may be ready for deletion
         """
+        dbg("Running helper, selectorname={0}".format(selectorname))
+
         if selectorname:
             assert isinstance(selectorname, str)
 
