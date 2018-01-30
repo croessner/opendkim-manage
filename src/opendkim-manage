@@ -72,8 +72,8 @@ INTERACT = False
 class GlobalCfg(object):
     """Global configuration options
     """
-    delete_not_before = 365
-    expire_after = 6
+    delete_not_before = 86400
+    expire_after = 365
     term_bg = "dark"
 
 
@@ -248,15 +248,17 @@ class Cmd(object):
         parser.add_argument("--delete-not-before", "-b",
                             default=None,
                             type=int,
-                            help="Minimum number of days for a DKIM key before "
-                                 "it can be deleted from LDAP (default: 6 "
-                                 "days)")
+                            help="Minimum number of seconds for a DKIM key "
+                                 "before it can be deleted from LDAP (default: "
+                                 "{0} seconds)".format(
+                                    GlobalCfg.delete_not_before))
         parser.add_argument("--expire-after", "-e",
                             default=None,
                             type=int,
                             help="Number of days after which new DKIM keys "
-                                 "will be created with --add-new  "
-                                 "(default: 365 days)")
+                                 "will be created with --add-new (default: "
+                                 "{0} days)".format(
+                                    GlobalCfg.expire_after))
 
         parser.add_argument("--interactive", "-i",
                             default=False,
@@ -1501,10 +1503,10 @@ class Manager(object):
         if selectorname:
             assert isinstance(selectorname, str)
 
-        days = datetime.timedelta(days=GlobalCfg.delete_not_before)
-        dbg("days={0}".format(days))
+        dt = datetime.timedelta(seconds=GlobalCfg.delete_not_before)
+        dbg("seconds={0}".format(dt))
 
-        if self.cmd_age(days_delta=days, selectorname=selectorname):
+        if self.cmd_age(days_delta=dt, selectorname=selectorname):
             dbg("Key can be deleted")
             return True
 
