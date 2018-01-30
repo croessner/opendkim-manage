@@ -804,8 +804,11 @@ class Manager(object):
                             status = " (" + _c("active", "red") + ")"
                         else:
                             status = ""
+                        ct_dt = self.convert_ldaptime_to_datetime(
+                            ldap_object2[1]['createTimestamp'][0])
+
                         for dkimselector in iter(dkimselectors):
-                            print("- DKIMSelector: " +
+                            print("{0} DKIMSelector: ".format(ct_dt) +
                                   _c("{0}".format(dkimselector), "magenta") +
                                   "{0}".format(status))
 
