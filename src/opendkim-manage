@@ -1477,10 +1477,9 @@ class Manager(object):
             assert isinstance(selectorname, str)
 
         dl = GlobalCfg.expire_after
-        dbg("_expire_after: dl={0}".format(dl))
 
         if self.cmd_age(days=dl, selectorname=selectorname):
-            dbg("_expire_after: New key should be created")
+            dbg("Key expired")
             return True
 
         return False
@@ -1496,10 +1495,10 @@ class Manager(object):
             assert isinstance(selectorname, str)
 
         days = datetime.timedelta(days=GlobalCfg.delete_not_before)
-        dbg("_delete_not_before: days={0}".format(days))
+        dbg("days={0}".format(days))
 
         if self.cmd_age(days_delta=days, selectorname=selectorname):
-            dbg("_delete_not_before: Key can be deleted")
+            dbg("Key can be deleted")
             return True
 
         return False
