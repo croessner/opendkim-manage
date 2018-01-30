@@ -1318,7 +1318,7 @@ class Manager(object):
                          "object {1}".format(cf.ldap['domain'], dn), "cyan"),
                       file=sys.stderr)
                 continue
-            dbg("cmd.config.add_new: domain '{0}'".format(domainname))
+            dbg("domain '{0}'".format(domainname))
 
             # Get full list of selector objects per domain
             list_of_results2 = lh.search(
@@ -1328,13 +1328,13 @@ class Manager(object):
             for ldap_object2 in iter(list_of_results2):
                 dn_sel = ldap_object2[0]
                 selectorname = ldap_object2[1]['DKIMSelector'][0]
-                dbg("cmd.config.add_new: DN={0}".format(dn_sel))
+                dbg("DN={0}".format(dn_sel))
 
                 if "DKIMActive" in ldap_object2[1] and \
                         ldap_object2[1]['DKIMActive'][0] == "TRUE":
-                    dbg("cmd.config.add_new: Found active DKIM key")
+                    dbg("Found active DKIM key")
                     if not self._expire_after(selectorname=selectorname):
-                        dbg("cmd.config.add_new: Key is still fine")
+                        dbg("Key is still fine")
                         valid_key = True
                         break
                     active_dt = self.convert_ldaptime_to_datetime(
@@ -1342,8 +1342,7 @@ class Manager(object):
                     continue
                 create_timestamp = ldap_object2[1]['createTimestamp'][0]
 
-                dbg("cmd.config.add_new: "
-                    "dn={0}, create_timestamp={1}".format(
+                dbg("dn={0}, create_timestamp={1}".format(
                      dn_sel, create_timestamp))
 
                 dts.append((
@@ -1355,20 +1354,20 @@ class Manager(object):
                 continue
 
             dts = sorted(dts, key=itemgetter(1), reverse=True)
-            dbg("cmd.config.add_new: dts={0}".format(dts))
+            dbg("dts={0}".format(dts))
 
             if len(dts) == 0:
-                dbg("cmd.config.add_new: Empty list. Need new key")
+                dbg("Empty list. Need new key")
                 self.cmd_create(domainname=domainname)
             else:
                 for selectorname, dt in iter(dts):
                     # Do not create a new key, if all old keys are younger than
                     # the current active one
                     if active_dt and not dt < active_dt:
-                        dbg("cmd.config.add_new: dt={0} active_dt={1}".format(
+                        dbg("dt={0} active_dt={1}".format(
                             dt, active_dt))
                         if self._expire_after(selectorname=selectorname):
-                            dbg("cmd.config.add_new: Too old. Need new key")
+                            dbg("Too old. Need new key")
                             self.cmd_create(domainname=domainname)
                     break
 
@@ -1394,13 +1393,13 @@ class Manager(object):
                          "object {1}".format(cf.ldap['domain'], dn), "cyan"),
                       file=sys.stderr)
                 continue
-            dbg("cmd.config.add_missing: domain '{0}'".format(domainname))
+            dbg("domain '{0}'".format(domainname))
 
             # Get full list of selector objects per domain
             list_of_results2 = lh.search(
                 search_filter="(&(objectClass=DKIM)(DKIMSelector=*))", base=dn)
             if len(list_of_results2) == 0:
-                dbg("cmd.config.add_missing: Need DKIM object")
+                dbg("Need DKIM object")
                 self.cmd_create(domainname=domainname)
 
     def cmd_auto(self):
@@ -1431,7 +1430,7 @@ class Manager(object):
                          "object {1}".format(cf.ldap['domain'], dn), "cyan"),
                       file=sys.stderr)
                 continue
-            dbg("cmd.config.add_missing: domain '{0}'".format(domainname))
+            dbg("domain '{0}'".format(domainname))
 
             # Get full list of selector objects per domain
             list_of_results2 = lh.search(
@@ -1441,11 +1440,11 @@ class Manager(object):
             for ldap_object2 in iter(list_of_results2):
                 dn_sel = ldap_object2[0]
                 selectorname = ldap_object2[1]['DKIMSelector'][0]
-                dbg("cmd.config.add_new: DN={0}".format(dn_sel))
+                dbg("DN={0}".format(dn_sel))
 
                 if "DKIMActive" in ldap_object2[1] and \
                         ldap_object2[1]['DKIMActive'][0] == "TRUE":
-                    dbg("cmd.config.add_new: Found active DKIM key")
+                    dbg("Found active DKIM key")
                     active_dt = self.convert_ldaptime_to_datetime(
                         ldap_object2[1]['createTimestamp'][0])
                     continue
