@@ -975,7 +975,8 @@ class Manager(object):
                          "cyan"), file=sys.stderr)
                 continue
 
-            print("DN: {0}".format(dn))
+            if INTERACT:
+                print("DN: {0}".format(dn))
 
             if self.ask("Do you really want to delete the DKIM key from LDAP?"):
                 lh.delete_dkim_key(dn)
@@ -1141,13 +1142,15 @@ class Manager(object):
                     "to TRUE for dn: {0}".format(dn))
                 dn_with_dkimactive_true = True
                 continue
-            print("DKIMActive=FALSE DN: {0}".format(ldap_object[0]))
+            if INTERACT:
+                print("DKIMActive=FALSE DN: {0}".format(ldap_object[0]))
             if self.ask(
                     "Do you really want to disable this DKIM key?"):
                 lh.unset_active(ldap_object[0])
 
         if not dn_with_dkimactive_true:
-            print("DKIMActive TRUE DN: {0}".format(dn))
+            if INTERACT:
+                print("DKIMActive TRUE DN: {0}".format(dn))
             if self.ask("Do you want to enable this DKIM key?"):
                 lh.set_active(dn)
 
