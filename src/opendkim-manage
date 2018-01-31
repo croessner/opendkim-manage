@@ -185,6 +185,10 @@ class Cmd(object):
                             default=False,
                             action="store_true",
                             help="Delete one or many DKIM keys")
+        parser.add_argument("--force-delete",
+                            default=False,
+                            action="store_true",
+                            help="Force deletion of a DKIM key")
         parser.add_argument("--active",
                             default=False,
                             action="store_true",
@@ -262,10 +266,6 @@ class Cmd(object):
                             help="Delay deletion of old DKIM keys (default: "
                                  "{0} days)".format(
                                     GlobalCfg.delete_delay))
-        parser.add_argument("--force-delete",
-                            default=False,
-                            action="store_true",
-                            help="Force deletion of a DKIM key")
 
         parser.add_argument("--interactive", "-i",
                             default=False,
