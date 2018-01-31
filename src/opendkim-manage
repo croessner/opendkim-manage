@@ -189,6 +189,10 @@ class Cmd(object):
                             default=False,
                             action="store_true",
                             help="Set DKIMActive to TRUE for a selector")
+        parser.add_argument("--force-active",
+                            default=False,
+                            action="store_true",
+                            help="Force activation of a DKIM key")
 
         parser.add_argument("--age", "-A",
                             default=None,
@@ -1001,6 +1005,7 @@ class Manager(object):
 
                 if self.ask(
                         "Do you really want to delete the DKIM key from LDAP?"):
+                    dbg("Delete DN: {0}".format(dn))
                     lh.delete_dkim_key(dn)
                     if VERBOSE:
                         print("DN: {0} deleted".format(dn))
@@ -1175,12 +1180,18 @@ class Manager(object):
                     print("DN '{0}' now inactive".format(dn))
 
         if not dn_with_dkimactive_true:
-            if INTERACT:
-                print("DN: {0}".format(dn))
-            if self.ask("Do you want to enable this DKIM key?"):
-                lh.set_active(dn)
-                if VERBOSE:
-                    print("DN '{0}' now active".format(dn))
+            result = self.cmd_testkey(selectorlist=[selectorname])
+            if result[selectorname] or cmd.config.force_active:
+                dbg("Found DNS record or --force-active used")
+                if INTERACT:
+                    print("DN: {0}".format(dn))
+                if self.ask("Do you want to enable this DKIM key?"):
+                    lh.set_active(dn)
+                    if VERBOSE:
+                        print("DN '{0}' now active".format(dn))
+            else:
+                print(_c("WARN: Can not activate DKIM key. No DNS record found",
+                         "cyan"), file=sys.stderr)
 
     def cmd_testkey(self, selectorlist=None):
         """--testkey command
@@ -1305,26 +1316,16 @@ class Manager(object):
                 dts = sorted(dts, key=itemgetter(2), reverse=True)
                 dbg("dts={0}".format(dts))
 
-                valid_key = None
                 for i, selectorname in enumerate([x[1] for x in iter(dts)]):
                     dbg("Checking selector '{0}'".format(
                         selectorname))
                     # Check if the current key is newer than the active key
                     if active_dt and dts[i][2] > active_dt:
-                        result = self.cmd_testkey(selectorlist=[selectorname])
-                        if result[selectorname]:
-                            dbg("Key found in DNS")
-                            valid_key = i
-                            break
-                        dbg("Key not yet published in DNS")
+                        self.cmd_active(selectorname=dts[i][1])
+                        break
                     else:
                         dbg("Selector '{0}' is younger than "
                             "the active selector".format(selectorname))
-
-                if valid_key is not None:
-                    dbg("Setting DKIMActive to TRUE for "
-                        "'{0}'".format(dts[valid_key][1]))
-                    self.cmd_active(selectorname=dts[valid_key][1])
 
     def cmd_add_new(self):
         """--add-new command
