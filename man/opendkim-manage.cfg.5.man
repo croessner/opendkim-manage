@@ -1,0 +1,152 @@
+.TH OPENDKIM\-MANAGE.CFG 5 "JANUARY 2018" Linux "File Formats Manual"
+.SH NAME
+.PP
+\fB\fC/etc/opendkim\-manage.cfg\fR
+.SH DESCRIPTION
+.PP
+This is the configuration file for \fB\fCopendkim\-manage(1)\fR\&. The file is an ini 
+formatted file which defines two sections \fB\fC[global]\fR and \fB\fC[ldap]\fR\&. The first 
+section defines some runtime parameters, while the second section defines all
+LDAP related parameters.
+.SH OPTIONS
+.PP
+The following parameters are defined for the global section:
+.PP
+\fB\fCexpire_after\fR
+    \fIdays\fP If a DKIM key in LDAP is older than these number of days, a new 
+    key will be created with the \fB\fC\-\-add\-new\fR parameter. The creation date and
+    time is taken from the \fIcreateTimestamp\fP attribute in LDAP.
+.PP
+\fB\fCdelete_delay\fR
+    If a DKIM key was rotated, the former DKIM key shall persist for some 
+    time to prevent e\-mail verification issues with remote MTAs that currently 
+    try to forward a e\-mail and temp fail for some days. This is a safety 
+    feature. Usually a value between 6 to 10 days should be fair enough. The 
+    value is an integer representing days.
+.PP
+\fB\fCselectorformat\fR
+    As \fB\fCopendkim\-manage\fR can create new DKIM objects automatically, it 
+    requires a format string. New objects are created with a RDN attribute 
+    DKIMSelector. This attribute represents the selector field. Such a 
+    selector must be unique across the whole LDAP subtree. Therefor the 
+    format string may (or even MUST) include some random symbols. You can use
+    defined variables in the format string: ${randomhex:length}, ${year}, 
+    ${month} and ${day}.
+.PP
+.RS
+.nf
+Example:
+
+s${randomhex:8}.${year}\-${month}
+
+This would create a selector such as: sA7DCF9B4.2018\-01
+.fi
+.RE
+.PP
+\fB\fCuse_dkim_identity\fR
+    \fB\fCopendkim\fR can create signatures including the \fIi=\fP field. If you set 
+    this option to yes, \fB\fCopendkim\-manage\fR will add an attribute DKIMIdentity 
+    with an \fI@\fP prefixed domain, for example @example.test. You must therefor
+     adopt your opendkim.conf settings to honer this.
+.PP
+\fB\fCterminal_background\fR
+    If you want to make use of the \fB\fC\-\-color\fR option, you can define, if you 
+    run on a light or a dark terminal background. Colors will be improved for
+    this.
+.PP
+The following parameters are defined for the ldap section:
+.PP
+\fB\fCuri\fR
+    This defines a LDAP URI. It has the following used form:
+    schema://host:port/basDN??scope
+.PP
+.RS
+.nf
+Example:
+
+uri = ldaps://example.test/ou=dkim,dc=example,dc=test,o=company??sub
+.fi
+.RE
+.PP
+\fB\fCbindmethod\fR
+    \fIsimple\fP or \fIsasl\fP \- This is the bind method
+.PP
+\fB\fCsaslmech\fR
+    \fIDIGEST\-MD5\fP
+    \fICRAM\-MD5\fP
+    \fIGSSAPI\fP
+    \fIEXTERNAL\fP
+.PP
+\fB\fCfilter\fR
+    The LDAP filter defines a basic filter for the root of DKIM key 
+    containers. It must also define a macro '%s', which is internally 
+    replaced with a string representing a domain in FQDN format, for example 
+    \fIexampleserver.de\fP
+.PP
+.RS
+.nf
+Example:
+
+filter = (&(objectClass=domain)(associatedDomain=%s))
+.fi
+.RE
+.PP
+\fB\fCdomain\fR
+    Because \fB\fCopendkim\-manage\fR does not have a LDAP filter parser, you must 
+    repeat the attribute that represents a domain name in the container objects.
+.PP
+.RS
+.nf
+Example:
+
+domain = associatedDomain
+.fi
+.RE
+.PP
+\fB\fCusetls\fR
+    \fIyes\fP or \fIno\fP This enables TLS for LDAP connections.
+.PP
+\fB\fCreqcert\fR
+    \fInever\fP
+    \fIallow\fP
+    \fItry\fP
+    \fIdemand\fP
+    This option deals with the LDAP server certificate.
+.PP
+\fB\fCciphers\fR
+    You can define a custom cipher suite. The default is system dependend.
+.PP
+\fB\fCcert\fR
+    Absolute path to a client TLS certificate. If your LDAP server requires 
+    such a certificate, you can define it here.
+.PP
+\fB\fCkey\fR
+    Absolute path to a client TLS key.
+.PP
+\fB\fCca\fR
+    This is a custom CA bundled file.
+.PP
+.RS
+.nf
+Example:
+
+ca = /etc/ssl/certs/your_own_cacert.pem
+.fi
+.RE
+.PP
+\fB\fCauthz_id\fR
+    Optional authorization id for SASL/GSSAPI and SASL/EXTERNAL
+.PP
+\fB\fCbinddn\fR
+    Either the simple bind or SASL username
+.PP
+\fB\fCbindpw\fR
+    Either the simple bind or SASL password
+.SH AUTHOR
+.PP
+Christian Rößner \[la]c@roessner.co\[ra]
+.SH SEE ALSO
+.PP
+.BR opendkim-manage (1), 
+.BR opendkim (1), 
+Project home for opendkim\-manage \[la]https://github.com/croessner/opendkim-manage/\[ra]
