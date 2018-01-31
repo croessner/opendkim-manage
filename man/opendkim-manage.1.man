@@ -1,0 +1,212 @@
+.TH OPENDKIM\-MANAGE 1 "JANUARY 2018" Linux "User Manuals"
+.SH NAME
+.PP
+\fB\fCopendkim\-manage\fR [\fB\fC\-h\fR] [\fB\fC\-\-list\fR] [\fB\fC\-\-create\fR] [\fB\fC\-\-delete\fR] [\fB\fC\-\-force\-delete\fR]
+                         [\fB\fC\-\-active\fR] [\fB\fC\-\-force\-active\fR] [\fB\fC\-\-age\fR \fIAGE\fP]
+                         [\fB\fC\-\-domain\fR\fIDOMAIN\fP] [\fB\fC\-\-selectorname\fR \fISELECTORNAME\fP]
+                         [\fB\fC\-\-size\fR \fISIZE\fP] [\fB\fC\-\-testkey\fR] [\fB\fC\-\-config\fR \fICONFIG\fP]
+                         [\fB\fC\-\-add\-missing\fR] [\fB\fC\-\-add\-new\fR] [\fB\fC\-\-rotate\fR] \fB\fC[\-\-auto\fR]
+                         [\fB\fC\-\-expire\-after\fR \fIEXPIRE_AFTER\fP]
+                         [\fB\fC\-\-delete\-delay\fR \fIDELETE_DELAY\fP]
+                         [\fB\fC\-\-interactive\fR] [\fB\fC\-\-debug\fR]
+                         [\fB\fC\-\-verbose\fR] [\fB\fC\-\-color\fR] [\fB\fC\-\-version\fR]
+.SH DESCRIPTION
+.PP
+\fB\fCopendkim\-manage\fR is a tool that manages DKIM keys in OpenLDAP. OpenLDAP 
+needs to use a modified version of the OpenDKIM LDAP schema, which is also 
+distributed with this release. It can be run as a cron job on a daily basis. 
+\fB\fCopendkim\-manage\fR can find new LDAP objcets in the tree that do not have DKIM
+keys yet and add them. It auto rotates keys, if a period of days is over and
+keys are outdated. It ensures that a DKIM key will only be acivated, if the
+DNS does provide the matching public key. It also cleans the LDAP tree and 
+purges old obsolete keys. Only keys that have been delayed for several days 
+are removed. If a key rotation happened, \fB\fCopendkim\-manage\fR will not remove the
+old key until the defined number of days was reached. The reason therefor is 
+that remote MTAs might forward mails and temporarily bounce for some days. If
+this tool would remove old keys too early, remote DKIM checks would fail due
+to missing keys in the DNS (which are normally generated after an 
+\fB\fCopendkim\-manage\fR \fB\fC\-\-auto\fR run). 
+.SH OPTIONS
+.PP
+\fB\fC\-\-help\fR, \fB\fC\-h\fR
+    Show a help message and exit
+.PP
+\fB\fC\-\-list\fR, \fB\fC\-l\fR
+    List DKIM keys. It will print out a list for either all domains or a 
+    subset of domains and there DKIM selectors.
+.PP
+\fB\fC\-\-create\fR, \fB\fC\-c\fR
+    Create a new DKIM key in LDAP.
+.PP
+\fB\fC\-\-delete\fR, \fB\fC\-d\fR
+    Delete one or many DKIM keys from LDAP.
+.PP
+\fB\fC\-\-force\-delete\fR
+    Force deletion of a DKIM key in LDAP. Normally a key can not be removed, 
+    if it is either marked active or if its \fB\fC\-\-delete\-delay\fR period has not 
+    passed.
+.PP
+\fB\fC\-\-active\fR
+    Set DKIMActive to TRUE for a selector. This will check the public DNS key
+     and mark the key active on success.
+.PP
+\fB\fC\-\-force\-active\fR
+    Force activation of a DKIM key. If no DNS public key was found, a key 
+    would not become active. Use this option to force it. Be careful not to 
+    activate wrong keys or more than one key per domain.
+.PP
+\fB\fC\-\-age\fR \fIAGE\fP, \fB\fC\-A\fR \fIAGE\fP
+    The key has to be older (postive value) or younger  (negative value) then
+     \fIN\fP number of days. It will return 0, if the expected result happened, 
+     else it returns 1.
+.PP
+\fB\fC\-\-domain\fR \fIDOMAIN\fP, \fB\fC\-D\fR \fIDOMAIN\fP
+    There are some commands that support this parameter. With it, you can 
+    reduce operations on a subset of one or more domains depending on the 
+    command.
+.PP
+\fB\fC\-\-selectorname\fR \fISELECTORNAME\fP, \fB\fC\-s\fR *SELECTORNAME`
+    This is an optional parameter. You can specify one or more selectors for 
+    several commands that do support it.
+.PP
+\fB\fC\-\-size\fR \fISIZE\fP, \fB\fC\-S\fR \fISIZE\fP 
+    Size of DKIM keys (default: 2048). If a new DKIM key is generated, the 
+    resulting RSA key will have these number of bits. Recommended values are 
+    2048 or 4096.
+.PP
+\fB\fC\-\-testkey\fR, \fB\fC\-t\fR
+    Check that the listed DKIM keys are published in DNS. It will print out 
+    the TXT record for a key.
+.PP
+\fB\fC\-\-config\fR \fICONFIG\fP, \fB\fC\-f\fR \fICONFIG\fP
+    Path to the \fB\fCopendkim\-manage\fR config file. (default:
+    \fB\fC/etc/opendkim\-manage.cfg\fR)
+.PP
+\fB\fC\-\-add\-missing\fR, \fB\fC\-m\fR
+    Add missing DKIM keys to LDAP objects. DKIM keys are stored in LDAP under
+    a defined baseDN. There should exist objects for each domain that carry 
+    a domain attribute. These objects are like containers for the DKIM keys.
+    If such a container is empty, \fB\fCopendkim\-manage\fR will create a new DKIM 
+    key. This newly created key is not automatically activated, as there does
+    not yet exist a public DNS key. 
+.PP
+\fB\fC\-\-add\-new\fR, \fB\fC\-n\fR
+    Check the age for DKIM keys and create new keys on demand. If the 
+    \fB\fC\-\-expire\-after\fR time period is over for a key, \fB\fCopendkim\-manage\fR creates
+    a new DKIM key. This newly created key is not automatically activated, as 
+    there does not yet exist a public DNS key.
+.PP
+\fB\fC\-\-rotate\fR, \fB\fC\-r\fR
+    Rotate one or all DKIM keys. It checks all newer keys against DNS and if 
+    possible will mark a newer key active and deactivate (all) former active 
+    keys.
+.PP
+\fB\fC\-\-auto\fR, \fB\fC\-a\fR
+    Short for \fB\fC\-\-add\-missing\fR, \fB\fC\-\-add\-new\fR, \fB\fC\-\-rotate\fR, \fB\fC\-\-active\fR and 
+    \fB\fC\-\-delete\fR\&. Normally, you will use only this parameter in production 
+    environments as a cron job.
+.PP
+\fB\fC\-\-expire\-after\fR \fIEXPIRE_AFTER\fP, \fB\fC\-e\fR \fIEXPIRE_AFTER\fP
+    Number of days after which new DKIM keys will be created with \fB\fC\-\-add\-new\fR 
+    (default: 365 days)
+.PP
+\fB\fC\-\-delete\-delay\fR \fIDELETE_DELAY\fP, \fB\fC\-y\fR \fIDELETE_DELAY\fP
+    Delay deletion of old DKIM keys (default: 10 days)
+.PP
+\fB\fC\-\-interactive\fR, \fB\fC\-i\fR
+    Turn on interactive mode. This is a safety feature to test the system 
+    before creating automatic cron jobs. Each LDAP operation is asked to the 
+    admin and only operated on confirmation.
+.PP
+\fB\fC\-\-debug\fR
+    Turn on debugging. This will print out a lot of debug information. If 
+    something unexpected happens, please try this option and report it back 
+    in the issue tracker. Make sure to remove passwords! You will see the 
+    LDAP bind or SASL password in the first few lines! You've been warned.
+.PP
+\fB\fC\-\-verbose\fR, \fB\fC\-v\fR
+    Verbose output. This will print out some helpful messages. Not too much 
+    at the moment.
+.PP
+\fB\fC\-\-color\fR
+    Turn on colors for output. This is a nice helper on the command line. If 
+    you have dozens of domains and also combine parameters mit debugging, 
+    overview will become quickly harder. Just give it a try.
+.PP
+\fB\fC\-\-version\fR, \fB\fC\-V\fR 
+    Print the version of \fB\fCopendkim\-manage\fR and exit
+.SH EXAMPLES
+.PP
+Print a list of DKIM selectors for the domain 'exampleserver.de':
+.PP
+.RS
+.nf
+opendkim\-manage \-\-list \-D exampleserver.de
+
+DNS domain 'exampleserver.de':
+DN: dc=exampleserver,dc=de,ou=dkim,ou=it,dc=roessner\-net,dc=de
+2018\-01\-30 09:28:43 DKIMSelector: s9C50794A.2018\-01 (active)
+.fi
+.RE
+.PP
+Create missing DKIM keys:
+.PP
+.RS
+.nf
+opendkim\-manage \-\-add\-missing
+.fi
+.RE
+.PP
+Check, if the DKIM selector 's9C50794A.2018\-01' is already in the DNS:
+.PP
+.RS
+.nf
+opendkim\-manage \-\-testkey \-s s9C50794A.2018\-01 \-\-verbose
+
+Command testkey
+Query s9C50794A.2018\-01._domainkey.exampleserver.de
+TXT: v=DKIM1; k=rsa; s=email; p=MIIBIj........DAQAB
+.fi
+.RE
+.PP
+Check, if the given key is older than a year:
+.PP
+.RS
+.nf
+opendkim\-manage \-\-age 365 \-s s9C50794A.2018\-01
+echo $?
+1
+.fi
+.RE
+.PP
+Check, if the given key is younger than 30 days:
+.PP
+.RS
+.nf
+opendkim\-manage \-\-age \-30 \-s s9C50794A.2018\-01
+echo $?
+0
+.fi
+.RE
+.PP
+Run opendkim\-manage as a daily cron job:
+.PP
+.RS
+.nf
+opendkim\-manage \-\-auto
+.fi
+.RE
+.SH FILES
+.PP
+\fI/etc/opendkim\-manage.cfg\fP
+      The system wide configuration file. See 
+.BR opendkim-manage.cfg (5) 
+for 
+      further details.
+.SH AUTHOR
+.PP
+Christian Rößner \[la]c@roessner.co\[ra]
+.SH SEE ALSO
+.PP
+.BR opendkim (1), 
+Project home for opendkim\-manage \[la]https://github.com/croessner/opendkim-manage/\[ra]
