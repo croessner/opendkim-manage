@@ -1492,6 +1492,11 @@ class Manager(object):
                         dbg("Selector {0} is older than "
                             "active key".format(selectorname))
                         self.cmd_delete(selectorname=selectorname)
+            else:
+                # If no selector is currently active, we activate the newest
+                dts = sorted(dts, key=itemgetter(1), reverse=True)
+                dbg("dts={0}".format(dts))
+                self.cmd_active(selectorname=dts[0][0])
 
     def _expire_after(self, selectorname=None):
         """If the remaining days for a DKIM keys are below 'days'left',
