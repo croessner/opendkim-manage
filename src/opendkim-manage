@@ -1653,13 +1653,13 @@ def main():
         print("INFO: Debugging turned: ON")
 
     # Set expire_after or its default
-    if cf.globals['expire_after'] and not cmd.config.expire_after:
+    if cf.globals['expire_after'] is not None and not cmd.config.expire_after:
         GlobalCfg.expire_after = cf.globals['expire_after']
     if cmd.config.expire_after:
         GlobalCfg.expire_after = cmd.config.expire_after
 
     # Delete delay option
-    if cf.globals['delete_delay'] and not cmd.config.delete_delay:
+    if cf.globals['delete_delay'] is not None and not cmd.config.delete_delay:
         GlobalCfg.delete_delay = cf.globals['delete_delay']
     if cmd.config.delete_delay:
         GlobalCfg.delete_delay = cmd.config.delete_delay
