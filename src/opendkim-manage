@@ -72,6 +72,7 @@ INTERACT = False
 class GlobalCfg(object):
     """Global configuration options
     """
+    delete_delay = 10
     expire_after = 365
     term_bg = "dark"
 
@@ -94,8 +95,8 @@ class CfgFile(object):
 
         # All known options
         global_opts = (
-            "expire_after", "selectorformat", "use_dkim_identity",
-            "terminal_background"
+            "expire_after", "delete_delay", "selectorformat",
+            "use_dkim_identity", "terminal_background"
         )
         ldap_opts = (
             "uri", "bindmethod", "saslmech", "filter", "domain",
@@ -133,7 +134,7 @@ class CfgFile(object):
                 print(_c("Error: Unknown option '{0}' in section "
                          "'global'".format(opt), "red"), file=sys.stderr)
                 sys.exit(os.EX_SOFTWARE)
-            if opt == "expire_after":
+            if opt in ("delete_delay", "expire_after"):
                 try:
                     self.globals[opt] = self.__config.getint(s, opt)
                 except ValueError:
@@ -251,6 +252,16 @@ class Cmd(object):
                                  "will be created with --add-new (default: "
                                  "{0} days)".format(
                                     GlobalCfg.expire_after))
+        parser.add_argument("--delete-delay", "-y",
+                            default=None,
+                            type=int,
+                            help="Delay deletion of old DKIM keys (default: "
+                                 "{0} days)".format(
+                                    GlobalCfg.delete_delay))
+        parser.add_argument("--force-delete",
+                            default=False,
+                            action="store_true",
+                            help="Force deletion of a DKIM key")
 
         parser.add_argument("--interactive", "-i",
                             default=False,
@@ -531,7 +542,8 @@ class LDAP(object):
                                          'DKIMDomain',
                                          'DKIMSelector',
                                          'DKIMActive',
-                                         'CreateTimestamp'])
+                                         'modifyTimestamp',
+                                         'createTimestamp'])
                 raw_result = self.__con.result(rid, True, 60)
                 dbg("raw_result={0}".format(raw_result))
                 if raw_result[0] is None:
@@ -969,19 +981,29 @@ class Manager(object):
                 ldap_object))
 
             dn = ldap_object[0]
-            if "DKIMActive" in ldap_object[1] and \
-                    ldap_object[1]['DKIMActive'][0] == "TRUE":
-                print(_c("WARN: Can not remove active DKIM key from LDAP",
-                         "cyan"), file=sys.stderr)
-                continue
+            # Get the modifyTimestamp attribute. If an object was rotated,
+            # its timestamp was changed. We compare this to delete-delay.
+            modify_timestamp = self.convert_ldaptime_to_datetime(
+                ldap_object[1]['modifyTimestamp'][0])
+            time_delta = datetime.timedelta(days=GlobalCfg.delete_delay)
 
-            if INTERACT:
-                print("DN: {0}".format(dn))
+            if not cmd.config.force_delete:
+                if "DKIMActive" in ldap_object[1] and \
+                        ldap_object[1]['DKIMActive'][0] == "TRUE":
+                    print(_c("WARN: Can not remove active DKIM key from LDAP",
+                             "cyan"), file=sys.stderr)
+                    continue
 
-            if self.ask("Do you really want to delete the DKIM key from LDAP?"):
-                lh.delete_dkim_key(dn)
-                if VERBOSE:
-                    print("DN: {0} deleted".format(dn))
+            if modify_timestamp + time_delta < datetime.datetime.now() or \
+                    cmd.config.force_delete:
+                if INTERACT:
+                    print("DN: {0}".format(dn))
+
+                if self.ask(
+                        "Do you really want to delete the DKIM key from LDAP?"):
+                    lh.delete_dkim_key(dn)
+                    if VERBOSE:
+                        print("DN: {0} deleted".format(dn))
 
     def cmd_age(self, days=None, days_delta=None, selectorname=None):
         """--age command
@@ -1634,6 +1656,12 @@ def main():
         GlobalCfg.expire_after = cf.globals['expire_after']
     if cmd.config.expire_after:
         GlobalCfg.expire_after = cmd.config.expire_after
+
+    # Delete delay option
+    if cf.globals['delete_delay'] and not cmd.config.delete_delay:
+        GlobalCfg.delete_delay = cf.globals['delete_delay']
+    if cmd.config.delete_delay:
+        GlobalCfg.delete_delay = cmd.config.delete_delay
 
     if cf.globals['terminal_background'] in (None, "dark"):
         GlobalCfg.term_bg = "dark"
