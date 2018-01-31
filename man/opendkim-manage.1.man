@@ -208,5 +208,6 @@ for
 Christian Rößner \[la]c@roessner.co\[ra]
 .SH SEE ALSO
 .PP
+.BR opendkim-manage.cfg (5), 
 .BR opendkim (1), 
 Project home for opendkim\-manage \[la]https://github.com/croessner/opendkim-manage/\[ra]
