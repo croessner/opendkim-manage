@@ -101,7 +101,7 @@ class CfgFile(object):
         ldap_opts = (
             "uri", "bindmethod", "saslmech", "filter", "domain",
             "usetls", "reqcert", "ciphers", "cert", "key", "ca",
-            "basedn", "authz_id", "binddn", "bindpw"
+            "authz_id", "binddn", "bindpw"
         )
 
         success = self.__config.read(cfgfile)
