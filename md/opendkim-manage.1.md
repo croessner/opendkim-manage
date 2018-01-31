@@ -198,4 +198,4 @@ Christian Rößner <c@roessner.co>
 SEE ALSO
 --------
 
-opendkim(1), [Project home for opendkim-manage](https://github.com/croessner/opendkim-manage/)
+opendkim-manage.cfg(5), opendkim(1), [Project home for opendkim-manage](https://github.com/croessner/opendkim-manage/)
