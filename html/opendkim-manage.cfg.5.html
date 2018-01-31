@@ -1,0 +1,75 @@
+<h1 id="opendkim-manage-cfg-5-january-2018-linux-file-formats-manual"><span class="md2man-title">OPENDKIM-MANAGE.CFG</span> <span class="md2man-section">5</span> <span class="md2man-date">JANUARY 2018</span> <span class="md2man-source">Linux</span> <span class="md2man-manual">File Formats Manual</span><a name="opendkim-manage-cfg-5-january-2018-linux-file-formats-manual" href="#opendkim-manage-cfg-5-january-2018-linux-file-formats-manual" class="md2man-permalink" title="permalink"></a></h1><h2 id="name">NAME<a name="name" href="#name" class="md2man-permalink" title="permalink"></a></h2><p><code>/etc/opendkim-manage.cfg</code></p><h2 id="description">DESCRIPTION<a name="description" href="#description" class="md2man-permalink" title="permalink"></a></h2><p>This is the configuration file for <code>opendkim-manage(1)</code>. The file is an ini 
+formatted file which defines two sections <code>[global]</code> and <code>[ldap]</code>. The first 
+section defines some runtime parameters, while the second section defines all
+LDAP related parameters.</p><h2 id="options">OPTIONS<a name="options" href="#options" class="md2man-permalink" title="permalink"></a></h2><p>The following parameters are defined for the global section:</p><p><code>expire_after</code>
+    <em>days</em> If a DKIM key in LDAP is older than these number of days, a new 
+    key will be created with the <code>--add-new</code> parameter. The creation date and
+    time is taken from the <em>createTimestamp</em> attribute in LDAP.</p><p><code>delete_delay</code>
+    If a DKIM key was rotated, the former DKIM key shall persist for some 
+    time to prevent e-mail verification issues with remote MTAs that currently 
+    try to forward a e-mail and temp fail for some days. This is a safety 
+    feature. Usually a value between 6 to 10 days should be fair enough. The 
+    value is an integer representing days.</p><p><code>selectorformat</code>
+    As <code>opendkim-manage</code> can create new DKIM objects automatically, it 
+    requires a format string. New objects are created with a RDN attribute 
+    DKIMSelector. This attribute represents the selector field. Such a 
+    selector must be unique across the whole LDAP subtree. Therefor the 
+    format string may (or even MUST) include some random symbols. You can use
+    defined variables in the format string: ${randomhex:length}, ${year}, 
+    ${month} and ${day}.</p><pre class="highlight plaintext"><code>Example:
+
+s${randomhex:8}.${year}-${month}
+
+This would create a selector such as: sA7DCF9B4.2018-01
+</code></pre>
+<p><code>use_dkim_identity</code>
+    <code>opendkim</code> can create signatures including the <em>i=</em> field. If you set 
+    this option to yes, <code>opendkim-manage</code> will add an attribute DKIMIdentity 
+    with an <em>@</em> prefixed domain, for example @example.test. You must therefor
+     adopt your opendkim.conf settings to honer this.</p><p><code>terminal_background</code>
+    If you want to make use of the <code>--color</code> option, you can define, if you 
+    run on a light or a dark terminal background. Colors will be improved for
+    this.</p><p>The following parameters are defined for the ldap section:</p><p><code>uri</code>
+    This defines a LDAP URI. It has the following used form:
+    schema://host:port/basDN??scope</p><pre class="highlight plaintext"><code>Example:
+
+uri = ldaps://example.test/ou=dkim,dc=example,dc=test,o=company??sub
+</code></pre>
+<p><code>bindmethod</code>
+    <em>simple</em> or <em>sasl</em> - This is the bind method</p><p><code>saslmech</code>
+    <em>DIGEST-MD5</em>
+    <em>CRAM-MD5</em>
+    <em>GSSAPI</em>
+    <em>EXTERNAL</em></p><p><code>filter</code>
+    The LDAP filter defines a basic filter for the root of DKIM key 
+    containers. It must also define a macro &#39;%s&#39;, which is internally 
+    replaced with a string representing a domain in FQDN format, for example 
+    <em>exampleserver.de</em></p><pre class="highlight plaintext"><code>Example:
+
+filter = (&amp;(objectClass=domain)(associatedDomain=%s))
+</code></pre>
+<p><code>domain</code>
+    Because <code>opendkim-manage</code> does not have a LDAP filter parser, you must 
+    repeat the attribute that represents a domain name in the container objects.</p><pre class="highlight plaintext"><code>Example:
+
+domain = associatedDomain
+</code></pre>
+<p><code>usetls</code>
+    <em>yes</em> or <em>no</em> This enables TLS for LDAP connections.</p><p><code>reqcert</code>
+    <em>never</em>
+    <em>allow</em>
+    <em>try</em>
+    <em>demand</em>
+    This option deals with the LDAP server certificate.</p><p><code>ciphers</code>
+    You can define a custom cipher suite. The default is system dependend.</p><p><code>cert</code>
+    Absolute path to a client TLS certificate. If your LDAP server requires 
+    such a certificate, you can define it here.</p><p><code>key</code>
+    Absolute path to a client TLS key.</p><p><code>ca</code>
+    This is a custom CA bundled file.</p><pre class="highlight plaintext"><code>Example:
+
+ca = /etc/ssl/certs/your_own_cacert.pem
+</code></pre>
+<p><code>authz_id</code>
+    Optional authorization id for SASL/GSSAPI and SASL/EXTERNAL</p><p><code>binddn</code>
+    Either the simple bind or SASL username</p><p><code>bindpw</code>
+    Either the simple bind or SASL password</p><h2 id="author">AUTHOR<a name="author" href="#author" class="md2man-permalink" title="permalink"></a></h2><p>Christian Rößner <a href="mailto:c@roessner.co">c@roessner.co</a></p><h2 id="see-also">SEE ALSO<a name="see-also" href="#see-also" class="md2man-permalink" title="permalink"></a></h2><p><a class="md2man-reference" href="../man1/opendkim-manage.1.html">opendkim-manage(1)</a>, <a class="md2man-reference" href="../man1/opendkim.1.html">opendkim(1)</a>, <a href="https://github.com/croessner/opendkim-manage/">Project home for opendkim-manage</a></p>

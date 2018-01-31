@@ -1,0 +1,108 @@
+<h1 id="opendkim-manage-1-january-2018-linux-user-manuals"><span class="md2man-title">OPENDKIM-MANAGE</span> <span class="md2man-section">1</span> <span class="md2man-date">JANUARY 2018</span> <span class="md2man-source">Linux</span> <span class="md2man-manual">User Manuals</span><a name="opendkim-manage-1-january-2018-linux-user-manuals" href="#opendkim-manage-1-january-2018-linux-user-manuals" class="md2man-permalink" title="permalink"></a></h1><h2 id="name">NAME<a name="name" href="#name" class="md2man-permalink" title="permalink"></a></h2><p><code>opendkim-manage</code> [<code>-h</code>] [<code>--list</code>] [<code>--create</code>] [<code>--delete</code>] [<code>--force-delete</code>]
+                         [<code>--active</code>] [<code>--force-active</code>] [<code>--age</code> <em>AGE</em>]
+                         [<code>--domain</code><em>DOMAIN</em>] [<code>--selectorname</code> <em>SELECTORNAME</em>]
+                         [<code>--size</code> <em>SIZE</em>] [<code>--testkey</code>] [<code>--config</code> <em>CONFIG</em>]
+                         [<code>--add-missing</code>] [<code>--add-new</code>] [<code>--rotate</code>] <code>[--auto</code>]
+                         [<code>--expire-after</code> <em>EXPIRE_AFTER</em>]
+                         [<code>--delete-delay</code> <em>DELETE_DELAY</em>]
+                         [<code>--interactive</code>] [<code>--debug</code>]
+                         [<code>--verbose</code>] [<code>--color</code>] [<code>--version</code>]</p><h2 id="description">DESCRIPTION<a name="description" href="#description" class="md2man-permalink" title="permalink"></a></h2><p><code>opendkim-manage</code> is a tool that manages DKIM keys in OpenLDAP. OpenLDAP 
+needs to use a modified version of the OpenDKIM LDAP schema, which is also 
+distributed with this release. It can be run as a cron job on a daily basis. 
+<code>opendkim-manage</code> can find new LDAP objcets in the tree that do not have DKIM
+keys yet and add them. It auto rotates keys, if a period of days is over and
+keys are outdated. It ensures that a DKIM key will only be acivated, if the
+DNS does provide the matching public key. It also cleans the LDAP tree and 
+purges old obsolete keys. Only keys that have been delayed for several days 
+are removed. If a key rotation happened, <code>opendkim-manage</code> will not remove the
+old key until the defined number of days was reached. The reason therefor is 
+that remote MTAs might forward mails and temporarily bounce for some days. If
+this tool would remove old keys too early, remote DKIM checks would fail due
+to missing keys in the DNS (which are normally generated after an 
+<code>opendkim-manage</code> <code>--auto</code> run). </p><h2 id="options">OPTIONS<a name="options" href="#options" class="md2man-permalink" title="permalink"></a></h2><p><code>--help</code>, <code>-h</code>
+    Show a help message and exit</p><p><code>--list</code>, <code>-l</code>
+    List DKIM keys. It will print out a list for either all domains or a 
+    subset of domains and there DKIM selectors.</p><p><code>--create</code>, <code>-c</code>
+    Create a new DKIM key in LDAP.</p><p><code>--delete</code>, <code>-d</code>
+    Delete one or many DKIM keys from LDAP.</p><p><code>--force-delete</code>
+    Force deletion of a DKIM key in LDAP. Normally a key can not be removed, 
+    if it is either marked active or if its <code>--delete-delay</code> period has not 
+    passed.</p><p><code>--active</code>
+    Set DKIMActive to TRUE for a selector. This will check the public DNS key
+     and mark the key active on success.</p><p><code>--force-active</code>
+    Force activation of a DKIM key. If no DNS public key was found, a key 
+    would not become active. Use this option to force it. Be careful not to 
+    activate wrong keys or more than one key per domain.</p><p><code>--age</code> <em>AGE</em>, <code>-A</code> <em>AGE</em>
+    The key has to be older (postive value) or younger  (negative value) then
+     <em>N</em> number of days. It will return 0, if the expected result happened, 
+     else it returns 1.</p><p><code>--domain</code> <em>DOMAIN</em>, <code>-D</code> <em>DOMAIN</em>
+    There are some commands that support this parameter. With it, you can 
+    reduce operations on a subset of one or more domains depending on the 
+    command.</p><p><code>--selectorname</code> <em>SELECTORNAME</em>, <code>-s</code> *SELECTORNAME`
+    This is an optional parameter. You can specify one or more selectors for 
+    several commands that do support it.</p><p><code>--size</code> <em>SIZE</em>, <code>-S</code> <em>SIZE</em> 
+    Size of DKIM keys (default: 2048). If a new DKIM key is generated, the 
+    resulting RSA key will have these number of bits. Recommended values are 
+    2048 or 4096.</p><p><code>--testkey</code>, <code>-t</code>
+    Check that the listed DKIM keys are published in DNS. It will print out 
+    the TXT record for a key.</p><p><code>--config</code> <em>CONFIG</em>, <code>-f</code> <em>CONFIG</em>
+    Path to the <code>opendkim-manage</code> config file. (default:
+    <code>/etc/opendkim-manage.cfg</code>)</p><p><code>--add-missing</code>, <code>-m</code>
+    Add missing DKIM keys to LDAP objects. DKIM keys are stored in LDAP under
+    a defined baseDN. There should exist objects for each domain that carry 
+    a domain attribute. These objects are like containers for the DKIM keys.
+    If such a container is empty, <code>opendkim-manage</code> will create a new DKIM 
+    key. This newly created key is not automatically activated, as there does
+    not yet exist a public DNS key. </p><p><code>--add-new</code>, <code>-n</code>
+    Check the age for DKIM keys and create new keys on demand. If the 
+    <code>--expire-after</code> time period is over for a key, <code>opendkim-manage</code> creates
+    a new DKIM key. This newly created key is not automatically activated, as 
+    there does not yet exist a public DNS key.</p><p><code>--rotate</code>, <code>-r</code>
+    Rotate one or all DKIM keys. It checks all newer keys against DNS and if 
+    possible will mark a newer key active and deactivate (all) former active 
+    keys.</p><p><code>--auto</code>, <code>-a</code>
+    Short for <code>--add-missing</code>, <code>--add-new</code>, <code>--rotate</code>, <code>--active</code> and 
+    <code>--delete</code>. Normally, you will use only this parameter in production 
+    environments as a cron job.</p><p><code>--expire-after</code> <em>EXPIRE_AFTER</em>, <code>-e</code> <em>EXPIRE_AFTER</em>
+    Number of days after which new DKIM keys will be created with <code>--add-new</code> 
+    (default: 365 days)</p><p><code>--delete-delay</code> <em>DELETE_DELAY</em>, <code>-y</code> <em>DELETE_DELAY</em>
+    Delay deletion of old DKIM keys (default: 10 days)</p><p><code>--interactive</code>, <code>-i</code>
+    Turn on interactive mode. This is a safety feature to test the system 
+    before creating automatic cron jobs. Each LDAP operation is asked to the 
+    admin and only operated on confirmation.</p><p><code>--debug</code>
+    Turn on debugging. This will print out a lot of debug information. If 
+    something unexpected happens, please try this option and report it back 
+    in the issue tracker. Make sure to remove passwords! You will see the 
+    LDAP bind or SASL password in the first few lines! You&#39;ve been warned.</p><p><code>--verbose</code>, <code>-v</code>
+    Verbose output. This will print out some helpful messages. Not too much 
+    at the moment.</p><p><code>--color</code>
+    Turn on colors for output. This is a nice helper on the command line. If 
+    you have dozens of domains and also combine parameters mit debugging, 
+    overview will become quickly harder. Just give it a try.</p><p><code>--version</code>, <code>-V</code> 
+    Print the version of <code>opendkim-manage</code> and exit</p><h2 id="examples">EXAMPLES<a name="examples" href="#examples" class="md2man-permalink" title="permalink"></a></h2><p>Print a list of DKIM selectors for the domain &#39;exampleserver.de&#39;:</p><pre class="highlight plaintext"><code>opendkim-manage --list -D exampleserver.de
+
+DNS domain 'exampleserver.de':
+DN: dc=exampleserver,dc=de,ou=dkim,ou=it,dc=roessner-net,dc=de
+2018-01-30 09:28:43 DKIMSelector: s9C50794A.2018-01 (active)
+</code></pre>
+<p>Create missing DKIM keys:</p><pre class="highlight plaintext"><code>opendkim-manage --add-missing
+</code></pre>
+<p>Check, if the DKIM selector &#39;s9C50794A.2018-01&#39; is already in the DNS:</p><pre class="highlight plaintext"><code>opendkim-manage --testkey -s s9C50794A.2018-01 --verbose
+
+Command testkey
+Query s9C50794A.2018-01._domainkey.exampleserver.de
+TXT: v=DKIM1; k=rsa; s=email; p=MIIBIj........DAQAB
+</code></pre>
+<p>Check, if the given key is older than a year:</p><pre class="highlight plaintext"><code>opendkim-manage --age 365 -s s9C50794A.2018-01
+echo $?
+1
+</code></pre>
+<p>Check, if the given key is younger than 30 days:</p><pre class="highlight plaintext"><code>opendkim-manage --age -30 -s s9C50794A.2018-01
+echo $?
+0
+</code></pre>
+<p>Run opendkim-manage as a daily cron job:</p><pre class="highlight plaintext"><code>opendkim-manage --auto
+</code></pre>
+<h2 id="files">FILES<a name="files" href="#files" class="md2man-permalink" title="permalink"></a></h2><p><em>/etc/opendkim-manage.cfg</em>
+      The system wide configuration file. See <a class="md2man-reference" href="../man5/opendkim-manage.cfg.5.html">opendkim-manage.cfg(5)</a> for 
+      further details.</p><h2 id="author">AUTHOR<a name="author" href="#author" class="md2man-permalink" title="permalink"></a></h2><p>Christian Rößner <a href="mailto:c@roessner.co">c@roessner.co</a></p><h2 id="see-also">SEE ALSO<a name="see-also" href="#see-also" class="md2man-permalink" title="permalink"></a></h2><p><a class="md2man-reference" href="../man5/opendkim-manage.cfg.5.html">opendkim-manage.cfg(5)</a>, <a class="md2man-reference" href="../man1/opendkim.1.html">opendkim(1)</a>, <a href="https://github.com/croessner/opendkim-manage/">Project home for opendkim-manage</a></p>
