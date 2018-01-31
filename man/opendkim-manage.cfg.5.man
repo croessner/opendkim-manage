@@ -47,7 +47,7 @@ This would create a selector such as: sA7DCF9B4.2018\-01
     \fB\fCopendkim\fR can create signatures including the \fIi=\fP field. If you set 
     this option to yes, \fB\fCopendkim\-manage\fR will add an attribute DKIMIdentity 
     with an \fI@\fP prefixed domain, for example @example.test. You must therefor
-     adopt your opendkim.conf settings to honer this.
+    adopt your opendkim.conf settings to honor this.
 .PP
 \fB\fCterminal_background\fR
     If you want to make use of the \fB\fC\-\-color\fR option, you can define, if you 

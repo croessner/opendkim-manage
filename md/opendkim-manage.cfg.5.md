@@ -50,7 +50,7 @@ The following parameters are defined for the global section:
     `opendkim` can create signatures including the *i=* field. If you set 
     this option to yes, `opendkim-manage` will add an attribute DKIMIdentity 
     with an *@* prefixed domain, for example @example.test. You must therefor
-     adopt your opendkim.conf settings to honer this.
+    adopt your opendkim.conf settings to honor this.
     
 `terminal_background`
     If you want to make use of the `--color` option, you can define, if you 
