@@ -1190,8 +1190,11 @@ class Manager(object):
                     if VERBOSE:
                         print("DN '{0}' now active".format(dn))
             else:
-                print(_c("WARN: Can not activate DKIM key. No DNS record found",
-                         "cyan"), file=sys.stderr)
+                # Only print warning, if --active was specified
+                if cmd.config.active:
+                    print(_c("WARN: Not activating DKIM key. No DNS record "
+                             "for selector '{0}'".format(selectorname),
+                             "cyan"), file=sys.stderr)
 
     def cmd_testkey(self, selectorlist=None):
         """--testkey command
