@@ -33,6 +33,7 @@ import random
 import re
 import string
 import sys
+import time
 import traceback
 
 from copy import copy
@@ -824,7 +825,8 @@ class Manager(object):
                             ldap_object2[1]['createTimestamp'][0])
 
                         for dkimselector in iter(dkimselectors):
-                            print("{0} DKIMSelector: ".format(ct_dt) +
+                            print("{0} DKIMSelector: ".format(
+                                utc2local(ct_dt)) +
                                   _c("{0}".format(dkimselector), "magenta") +
                                   "{0}".format(status))
 
@@ -1006,7 +1008,7 @@ class Manager(object):
                              "cyan"), file=sys.stderr)
                     continue
 
-            if modify_timestamp + time_delta < datetime.datetime.now() or \
+            if modify_timestamp + time_delta < datetime.datetime.utcnow() or \
                     cmd.config.force_delete:
                 if INTERACT:
                     print("DN: {0}".format(dn))
@@ -1102,7 +1104,7 @@ class Manager(object):
         # Check, if key is more than X days old
         if not negative or cmp_age is None:
             dbg("positive age")
-            if datetime.datetime.now() - dt > ct:
+            if datetime.datetime.utcnow() - dt > ct:
                 dbg("{0}: Key is older".format(selectorname))
                 verbose(_c("{0}".format(selectorname), "magenta") +
                         ": Key is older")
@@ -1115,7 +1117,7 @@ class Manager(object):
 
         if negative:
             dbg("negative age")
-            if datetime.datetime.now() - dt < ct:
+            if datetime.datetime.utcnow() - dt < ct:
                 dbg("{0}: Key is younger".format(selectorname))
                 verbose(_c("{0}".format(selectorname), "magenta") +
                         ": Key is younger")
@@ -1628,9 +1630,19 @@ class Manager(object):
         ct_min = int(ldaptime[10:12])
         ct_sec = int(ldaptime[12:14])
 
+        # NOTE: RFC 4517 section 3.3.13
+        # g-time-zone is 'Z' which is UTC
         return datetime.datetime(
             year=ct_year, month=ct_month, day=ct_day,
             hour=ct_hour, minute=ct_min, second=ct_sec)
+
+
+def utc2local(utc):
+    epoch = time.mktime(utc.timetuple())
+    offset = datetime.datetime.fromtimestamp(epoch) - \
+        datetime.datetime.utcfromtimestamp(epoch)
+
+    return utc + offset
 
 
 def _c(*args):
