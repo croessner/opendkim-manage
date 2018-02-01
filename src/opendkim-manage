@@ -1545,8 +1545,8 @@ class Manager(object):
                     if dt < active_dt:
                         dbg("Selector {0} is older than "
                             "active key".format(selectorname))
-                        verbose("Running --delete for " +
-                                _c("'{0}'".format(selectorname), "magenta"))
+                        verbose("Running --delete for '" +
+                                _c("{0}".format(selectorname), "magenta") + "'")
                         self.cmd_delete(selectorname=selectorname)
             else:
                 # If no selector is currently active, we activate the newest
