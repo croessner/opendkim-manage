@@ -1232,17 +1232,17 @@ class Manager(object):
 
                 dns_query = "{0}._domainkey.{1}".format(selector, domainname)
 
-                if VERBOSE:
+                if cmd.config.testkey:
                     print("Query " + _c("{0}".format(dns_query), "yellow"))
                 try:
                     answers = dns.resolver.query(dns_query, "TXT")
                     for rdata in answers:
                         if not result[selector]:
                             result[selector] = True
-                        if VERBOSE:
+                        if cmd.config.testkey:
                             print("TXT: {0}".format("".join(rdata.strings)))
                 except dns.resolver.NXDOMAIN:
-                    if VERBOSE:
+                    if cmd.config.testkey:
                         print("TXT: not present")
                 except dns.resolver.NoNameservers:
                     print(_c("WARN: No nameservers could be reached", "cyan"))
