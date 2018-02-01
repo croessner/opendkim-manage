@@ -36,6 +36,7 @@ import sys
 import traceback
 
 from operator import itemgetter
+from pprint import pformat
 
 import dns.resolver
 import ldap
@@ -556,13 +557,12 @@ class LDAP(object):
                                          'modifyTimestamp',
                                          'createTimestamp'])
                 raw_result = self.__con.result(rid, True, 60)
-                dbg("raw_result={0}".format(raw_result))
+                dbg("raw_result={0}".format(pformat(raw_result)))
                 if raw_result[0] is None:
                     self.__con.abandon(rid)
                     print(_c("WARN: LDAP search timed out", "cyan"))
                     return self._result()
                 list_of_results = raw_result[1]
-                dbg("list_of_result={0}".format(list_of_results))
                 return list_of_results
             else:
                 return None
@@ -785,9 +785,7 @@ class Manager(object):
         for domain in iter(domains):
             # Get DN for a domain as a new search base
             list_of_results = lh.search(domain)
-            dbg("list_of_results={0}".format(list_of_results))
             for ldap_object in iter(list_of_results):
-                dbg("ldap_object={0}".format(ldap_object))
                 dn = None
                 domainname = None
                 dkimselectors = list()
@@ -809,8 +807,6 @@ class Manager(object):
                     list_of_results2 = lh.search(
                         search_filter="(objectClass=DKIM)", base=dn)
                     for ldap_object2 in iter(list_of_results2):
-                        dbg("ldap_object2={0}".format(
-                            ldap_object2))
                         try:
                             dkimselectors = ldap_object2[1]['DKIMSelector']
                         except KeyError:
@@ -906,9 +902,6 @@ class Manager(object):
                              "red"))
                     sys.exit(os.EX_SOFTWARE)
                 for ldap_object in iter(list_of_results):
-                    dbg("ldap_object={0}".format(
-                        ldap_object))
-
                     error = False
 
                     dn = None
@@ -988,8 +981,6 @@ class Manager(object):
                 continue
 
             ldap_object = list_of_results[0]
-            dbg("ldap_object={0}".format(
-                ldap_object))
 
             dn = ldap_object[0]
             # Get the modifyTimestamp attribute. If an object was rotated,
