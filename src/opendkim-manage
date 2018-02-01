@@ -924,9 +924,6 @@ class Manager(object):
                     except KeyError:
                         error = True
 
-                    print("DNS domain '{0}':".format(domainname))
-                    print("DN: {0}".format(dn))
-
                     if not error:
                         # Generate RSA certificate
                         pem_key = self.generate_RSA_private_key(cmd.config.size)
