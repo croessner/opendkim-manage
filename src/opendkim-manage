@@ -955,6 +955,12 @@ class Manager(object):
                                 pem_key,
                                 domain,
                                 identity)
+                            verbose("DN: " +
+                                    _c("{0}".format(
+                                        "DKIMSelector={0},".format(
+                                            selector) + dn),
+                                        "yellow") +
+                                    " created")
 
         else:
             print(_c("WARN: No 'selectorformat' defined", "cyan"),
