@@ -891,6 +891,11 @@ class Manager(object):
                 lh.store_dkim_key(
                     "DKIMSelector={0},".format(selector) + dn, pem_key,
                     cmd.config.domain[0], identity)
+                verbose("DN: " +
+                        _c("{0}".format(
+                            "DKIMSelector={0},".format(selector) + dn),
+                            "yellow") +
+                        " created")
 
         elif cf.globals['selectorformat']:
             if domainname:
@@ -1010,7 +1015,13 @@ class Manager(object):
                         "Do you really want to delete the DKIM key from LDAP?"):
                     dbg("Delete DN: {0}".format(dn))
                     lh.delete_dkim_key(dn)
-                    verbose("DN: {0} deleted".format(dn))
+                    verbose("DN: " +
+                            _c("{0}".format(dn), "yellow") +
+                            _c(" deleted", "green"))
+            else:
+                verbose("DN: " +
+                        _c("{0}".format(dn), "yellow") +
+                        _c(" not deleted", "red"))
 
     def cmd_age(self, days=None, days_delta=None, selectorname=None):
         """--age command
@@ -1188,7 +1199,9 @@ class Manager(object):
             if self.ask(
                     "Do you really want to disable this DKIM key?"):
                 lh.unset_active(ldap_object[0])
-                verbose("DN '{0}' now inactive".format(dn))
+                verbose("DN: " +
+                        _c("{0}".format(dn), "yellow") +
+                        " now inactive")
 
         if not dn_with_dkimactive_true:
             result = self.cmd_testkey(selectorlist=[selectorname])
@@ -1198,7 +1211,9 @@ class Manager(object):
                     print("DN: {0}".format(dn))
                 if self.ask("Do you want to enable this DKIM key?"):
                     lh.set_active(dn)
-                    verbose("DN '{0}' now active".format(dn))
+                    verbose("DN: " +
+                            _c("{0}".format(dn), "yellow") +
+                            " now active")
             else:
                 # Only print warning, if --active was specified
                 if cmd.config.active:
@@ -1477,15 +1492,18 @@ class Manager(object):
         older than the active date (The object that has the DKIMDActive
         attribute set to TRUE)
         """
-        self.cmd_add_new()
-        self.cmd_add_missing()
-        self.cmd_rotate()
-
         cf = self.__cf
         lh = self.__ldap
 
         if self.__cmd.config.auto:
             verbose("Command auto", "green")
+
+        verbose("Running --add-new")
+        self.cmd_add_new()
+        verbose("Running --add-missing")
+        self.cmd_add_missing()
+        verbose("Running --rotate")
+        self.cmd_rotate()
 
         # Iterate through all domains
         list_of_results = lh.search()
@@ -1527,11 +1545,15 @@ class Manager(object):
                     if dt < active_dt:
                         dbg("Selector {0} is older than "
                             "active key".format(selectorname))
+                        verbose("Running --delete for " +
+                                _c("'{0}'".format(selectorname), "magenta"))
                         self.cmd_delete(selectorname=selectorname)
             else:
                 # If no selector is currently active, we activate the newest
                 dts = sorted(dts, key=itemgetter(1), reverse=True)
                 dbg("dts={0}".format(dts))
+                verbose("Running --active for " +
+                        _c("'{0}'".format(dts[0][0]), "magenta"))
                 self.cmd_active(selectorname=dts[0][0])
 
     def _expire_after(self, selectorname=None):
