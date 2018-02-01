@@ -299,8 +299,7 @@ class Cmd(object):
                 sys.exit(os.EX_USAGE)
 
         # Some options require the '--selectorname' option being set
-        if (self.config.testkey or
-            self.config.delete or
+        if (self.config.delete or
             self.config.age or
             self.config.active) \
                 and not self.config.selectorname:
@@ -315,6 +314,14 @@ class Cmd(object):
                 (self.config.domain or self.config.selectorname):
             print(_c("Error: Option '--domain' and/or '--selectorname' not "
                      "allowed", "red"), file=sys.stderr)
+            sys.exit(os.EX_USAGE)
+
+        # Either --selectorname or --domain is required
+        if self.config.testkey and \
+                self.config.domain and \
+                self.config.selectorname:
+            print(_c("Error: Option '--domain' or '--selectorname' is "
+                     "required", "red"), file=sys.stderr)
             sys.exit(os.EX_USAGE)
 
         # Binary fields
@@ -1216,19 +1223,37 @@ class Manager(object):
 
         # Store success/fail status for each query
         result = dict()
+        domains = dict()
 
         if not selectorlist:
-            selectorlist = cmd.config.selectorname
+            selectorlist = list()
+            if cmd.config.domain:
+                for domain in iter(cmd.config.domain):
+                    list_of_results = lh.search(
+                        search_filter="(&(objectClass=DKIM)"
+                                      "(DKIMDomain={0}))".format(domain))
+                    for ldap_object in iter(list_of_results):
+                        selectorname = ldap_object[1]['DKIMSelector'][0]
+                        domainname = ldap_object[1]['DKIMDomain'][0]
+                        selectorlist.append(selectorname)
+                        domains[selectorname] = domainname
+            else:
+                selectorlist = cmd.config.selectorname
 
         for selector in iter(selectorlist):
             result[selector] = False
+            list_of_results = list()
 
-            list_of_results = lh.search(
-                search_filter="(&(objectClass=DKIM)(DKIMSelector={0}))".format(
-                    selector))
-            if len(list_of_results) > 0:
-                ldap_object = list_of_results[0]
-                domainname = ldap_object[1]['DKIMDomain'][0]
+            if len(domains) == 0:
+                list_of_results = lh.search(
+                    search_filter="(&(objectClass=DKIM)"
+                                  "(DKIMSelector={0}))".format(selector))
+            if len(list_of_results) > 0 or len(domains) > 0:
+                if selector in domains:
+                    domainname = domains[selector]
+                else:
+                    ldap_object = list_of_results[0]
+                    domainname = ldap_object[1]['DKIMDomain'][0]
 
                 dns_query = "{0}._domainkey.{1}".format(selector, domainname)
 

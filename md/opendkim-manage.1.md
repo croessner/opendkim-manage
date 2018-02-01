@@ -78,8 +78,7 @@ OPTIONS
     
 `--size` *SIZE*, `-S` *SIZE* 
     Size of DKIM keys (default: 2048). If a new DKIM key is generated, the 
-    resulting RSA key will have these number of bits. Recommended values are 
-    2048 or 4096.
+    resulting RSA key will have these number of bits.
     
 `--testkey`, `-t`
     Check that the listed DKIM keys are published in DNS. It will print out 
@@ -160,12 +159,20 @@ Create missing DKIM keys:
     
 Check, if the DKIM selector 's9C50794A.2018-01' is already in the DNS:
 
-    opendkim-manage --testkey -s s9C50794A.2018-01 --verbose
+    opendkim-manage --testkey -s s9C50794A.2018-01
     
-    Command testkey
     Query s9C50794A.2018-01._domainkey.exampleserver.de
     TXT: v=DKIM1; k=rsa; s=email; p=MIIBIj........DAQAB
 
+Check, if all DKIM selectors for some domains are already in the DNS:
+
+    opendkim-manage --testkey -D roessner.blog -D exampleserver.de
+    
+    Query s97BEBEE5.2018-01._domainkey.roessner.blog
+    TXT: v=DKIM1; k=rsa; s=email; p=MIIBIj........DAQAB
+    Query s9C50794A.2018-01._domainkey.exampleserver.de
+    TXT: v=DKIM1; k=rsa; s=email; p=MIIBIj........DAQAB
+    
 Check, if the given key is older than a year:
 
     opendkim-manage --age 365 -s s9C50794A.2018-01

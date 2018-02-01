@@ -42,8 +42,7 @@ to missing keys in the DNS (which are normally generated after an
     This is an optional parameter. You can specify one or more selectors for 
     several commands that do support it.</p><p><code>--size</code> <em>SIZE</em>, <code>-S</code> <em>SIZE</em> 
     Size of DKIM keys (default: 2048). If a new DKIM key is generated, the 
-    resulting RSA key will have these number of bits. Recommended values are 
-    2048 or 4096.</p><p><code>--testkey</code>, <code>-t</code>
+    resulting RSA key will have these number of bits.</p><p><code>--testkey</code>, <code>-t</code>
     Check that the listed DKIM keys are published in DNS. It will print out 
     the TXT record for a key.</p><p><code>--config</code> <em>CONFIG</em>, <code>-f</code> <em>CONFIG</em>
     Path to the <code>opendkim-manage</code> config file. (default:
@@ -87,9 +86,15 @@ DN: dc=exampleserver,dc=de,ou=dkim,ou=it,dc=roessner-net,dc=de
 </code></pre>
 <p>Create missing DKIM keys:</p><pre class="highlight plaintext"><code>opendkim-manage --add-missing
 </code></pre>
-<p>Check, if the DKIM selector &#39;s9C50794A.2018-01&#39; is already in the DNS:</p><pre class="highlight plaintext"><code>opendkim-manage --testkey -s s9C50794A.2018-01 --verbose
+<p>Check, if the DKIM selector &#39;s9C50794A.2018-01&#39; is already in the DNS:</p><pre class="highlight plaintext"><code>opendkim-manage --testkey -s s9C50794A.2018-01
 
-Command testkey
+Query s9C50794A.2018-01._domainkey.exampleserver.de
+TXT: v=DKIM1; k=rsa; s=email; p=MIIBIj........DAQAB
+</code></pre>
+<p>Check, if all DKIM selectors for some domains are already in the DNS:</p><pre class="highlight plaintext"><code>opendkim-manage --testkey -D roessner.blog -D exampleserver.de
+
+Query s97BEBEE5.2018-01._domainkey.roessner.blog
+TXT: v=DKIM1; k=rsa; s=email; p=MIIBIj........DAQAB
 Query s9C50794A.2018-01._domainkey.exampleserver.de
 TXT: v=DKIM1; k=rsa; s=email; p=MIIBIj........DAQAB
 </code></pre>
