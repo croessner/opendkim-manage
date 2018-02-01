@@ -127,8 +127,7 @@ OPTIONS
 `--debug`
     Turn on debugging. This will print out a lot of debug information. If 
     something unexpected happens, please try this option and report it back 
-    in the issue tracker. Make sure to remove passwords! You will see the 
-    LDAP bind or SASL password in the first few lines! You've been warned.
+    in the issue tracker.
 
 `--verbose`, `-v`
     Verbose output. This will print out some helpful messages. Not too much 

@@ -35,6 +35,7 @@ import string
 import sys
 import traceback
 
+from copy import copy
 from operator import itemgetter
 from pprint import pformat
 
@@ -1693,7 +1694,12 @@ def main():
     else:
         GlobalCfg.term_bg = "light"
 
-    dbg("cf.ldap: {0}".format(cf.ldap))
+    # Do not print out passwords
+    tmp = copy(cf.ldap)
+    if "bindpw" in tmp:
+        tmp["bindpw"] = "***** HIDDEN *****"
+    dbg("cf.ldap: {0}".format(tmp))
+
     dbg("cf.globals: {0}".format(cf.globals))
     dbg("GlobalCfg.__dict__: {0}".format(GlobalCfg.__dict__))
 
