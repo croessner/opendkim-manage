@@ -1369,7 +1369,7 @@ class Manager(object):
         cf = self.__cf
         lh = self.__ldap
 
-        if cmd.config.add_new:
+        if self.__cmd.config.add_new:
             verbose("Command add-new", "green")
 
         # Iterate through all domains
