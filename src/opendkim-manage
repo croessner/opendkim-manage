@@ -1552,8 +1552,8 @@ class Manager(object):
                 # If no selector is currently active, we activate the newest
                 dts = sorted(dts, key=itemgetter(1), reverse=True)
                 dbg("dts={0}".format(dts))
-                verbose("Running --active for " +
-                        _c("'{0}'".format(dts[0][0]), "magenta"))
+                verbose("Running --active for '" +
+                        _c("{0}".format(dts[0][0]), "magenta") + "'")
                 self.cmd_active(selectorname=dts[0][0])
 
     def _expire_after(self, selectorname=None):
