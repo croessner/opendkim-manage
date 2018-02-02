@@ -672,6 +672,12 @@ class SelectorParseError(IndexError):
     pass
 
 
+class InvalidSelectorname(Exception):
+    """Exception that is raised, if the created selectorname is invalid
+    """
+    pass
+
+
 class Selector(object):
     """Generate a selector from config file param 'selectorname'
 
@@ -748,6 +754,33 @@ class Selector(object):
     __prog = re.compile(__pattern, flags=re.UNICODE | re.IGNORECASE)
 
     name = property(fget=get_name)
+
+    @staticmethod
+    def dns_calculated_rname(selector, domain):
+        """Check, if the given record name conforms to DNS RFC1035
+        """
+        assert isinstance(selector, str)
+        assert isinstance(domain, str)
+
+        # The constructed rname
+        record = selector + "._domainkey." + domain
+
+        labels = record.split('.')
+        count = 0
+        # Count labels
+        for label in iter(labels):
+            if len(label) > 63:
+                raise InvalidSelectorname(
+                    "Label '{0}' too long: {1}>63".format(label, len(label)))
+            count += len(label)
+
+        # Count dots
+        count += len(labels) - 1
+
+        if count > 253:
+            raise InvalidSelectorname("Record too long: {0}>253".format(count))
+
+        return selector
 
 
 class Manager(object):
@@ -857,7 +890,14 @@ class Manager(object):
                 print(_c("Error: Please specify only one 'selectorname'",
                          "red"), file=sys.stderr)
                 sys.exit(os.EX_SOFTWARE)
-            selector = cmd.config.selectorname[0]
+            try:
+                selector = Selector.dns_calculated_rname(
+                    cmd.config.selectorname[0], cmd.config.domain[0])
+            except InvalidSelectorname as rname_err:
+                print(_c("Error: DNS rname error for selector '{0}': "
+                         "{1}".format(cmd.config.selectorname[0], rname_err),
+                         "red"), file=sys.stderr)
+                sys.exit(os.EX_SOFTWARE)
 
             # Get DN suffix for the new selector object
             list_of_results = lh.search(cmd.config.domain[0])
@@ -945,9 +985,16 @@ class Manager(object):
                                          "invalid", "red"), file=sys.stderr)
                                 sys.exit(os.EX_SOFTWARE)
 
-                            dbg("sel.name={0}".format(
-                                sel.name))
-                            selector = sel.name
+                            dbg("sel.name={0}".format(sel.name))
+                            try:
+                                selector = Selector.dns_calculated_rname(
+                                    sel.name, domainname)
+                            except InvalidSelectorname as rname_err:
+                                print(_c(
+                                    "Error: DNS rname error for selector "
+                                    "'{0}': {1}".format(sel.name, rname_err),
+                                    "red"), file=sys.stderr)
+                                sys.exit(os.EX_SOFTWARE)
 
                             dbg("Saving DKIM key to LDAP")
                             lh.store_dkim_key(
