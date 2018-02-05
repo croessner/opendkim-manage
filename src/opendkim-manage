@@ -90,10 +90,11 @@ class CfgFile(object):
 
         self.globals = dict()
         self.ldap = dict()
+        self.dns = dict()
 
         # All known sections
         sections = (
-            "global", "ldap"
+            "global", "ldap", "dns"
         )
 
         # All known options
@@ -105,6 +106,9 @@ class CfgFile(object):
             "uri", "bindmethod", "saslmech", "filter", "domain",
             "usetls", "reqcert", "ciphers", "cert", "key", "ca",
             "authz_id", "binddn", "bindpw"
+        )
+        dns_opts = (
+            "primary_nameserver", "tsig_key_file", "tsig_key_name", "algorithm"
         )
 
         success = self.__config.read(cfgfile)
@@ -166,6 +170,17 @@ class CfgFile(object):
                     self.ldap[opt] = False
             else:
                 self.ldap[opt] = self.__config.get(s, opt)
+
+        # Parse DNS options
+        for opt in iter(dns_opts):
+            self.dns[opt] = None
+        s = "dns"
+        for opt in iter(self.__config.options("dns")):
+            if opt not in dns_opts:
+                print(_c("Error: Unknown option '{0}' in section 'dns'".format(
+                         opt), "red"), file=sys.stderr)
+                sys.exit(os.EX_SOFTWARE)
+            self.ldap[opt] = self.__config.get(s, opt)
 
 
 class Cmd(object):
@@ -273,6 +288,10 @@ class Cmd(object):
                             help="Delay deletion of old DKIM keys (default: "
                                  "{0} days)".format(
                                     GlobalCfg.delete_delay))
+        parser.add_argument("--update-dns", "-u",
+                            default=False,
+                            action="store_true",
+                            help="Update DNS zones")
 
         parser.add_argument("--interactive", "-i",
                             default=False,
