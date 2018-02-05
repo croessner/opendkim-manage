@@ -89,6 +89,12 @@ to missing keys in the DNS (which are normally generated after an
     key. This newly created key is not automatically activated, as there does
     not yet exist a public DNS key. 
 .PP
+\fB\fC\-\-max\-initial\fR
+    If you maintain lots of domains and start using \fB\fCopendkim\-manage\fR, it 
+    might be better to initialize DKIM object in chunks. This parameter will not 
+    create more than N missing DKIM keys per run. It is only used together 
+    with the \fB\fC\-\-add\-missing\fR parameter.
+.PP
 \fB\fC\-\-add\-new\fR, \fB\fC\-n\fR
     Check the age for DKIM keys and create new keys on demand. If the 
     \fB\fC\-\-expire\-after\fR time period is over for a key, \fB\fCopendkim\-manage\fR creates

@@ -95,7 +95,13 @@ OPTIONS
     If such a container is empty, `opendkim-manage` will create a new DKIM 
     key. This newly created key is not automatically activated, as there does
     not yet exist a public DNS key. 
-    
+
+`--max-initial`
+    If you maintain lots of domains and start using `opendkim-manage`, it 
+    might be better to initialize DKIM object in chunks. This parameter will not 
+    create more than N missing DKIM keys per run. It is only used together 
+    with the `--add-missing` parameter.
+
 `--add-new`, `-n`
     Check the age for DKIM keys and create new keys on demand. If the 
     `--expire-after` time period is over for a key, `opendkim-manage` creates

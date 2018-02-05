@@ -242,6 +242,10 @@ class Cmd(object):
                             default=False,
                             action="store_true",
                             help="Add missing DKIM keys to LDAP objects")
+        parser.add_argument("--max-initial",
+                            default=0,
+                            type=int,
+                            help="Maximum number of newly created DKIM keys")
         parser.add_argument("--add-new", "-n",
                             default=False,
                             action="store_true",
@@ -1511,14 +1515,24 @@ class Manager(object):
         have any DKIM keys yet, create a new DKIM object
         """
         cf = self.__cf
+        cmd = self.__cmd
         lh = self.__ldap
 
         if self.__cmd.config.add_missing:
             verbose("Command add-missing", "green")
 
+        if cmd.config.max_initial > 0:
+            count_initial = True
+        else:
+            count_initial = False
+
         # Iterate through all domains
         list_of_results = lh.search()
+        counter = 0
         for ldap_object in iter(list_of_results):
+            if count_initial and counter == cmd.config.max_initial:
+                dbg("Maximum initial reached ({0})".format(counter))
+                return
             dn = ldap_object[0]
             try:
                 domainname = ldap_object[1][cf.ldap['domain']][0]
@@ -1535,6 +1549,7 @@ class Manager(object):
             if len(list_of_results2) == 0:
                 dbg("Need DKIM object")
                 self.cmd_create(domainname=domainname)
+                counter += 1
 
     def cmd_auto(self):
         """--auto command

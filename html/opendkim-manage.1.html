@@ -52,7 +52,11 @@ to missing keys in the DNS (which are normally generated after an
     a domain attribute. These objects are like containers for the DKIM keys.
     If such a container is empty, <code>opendkim-manage</code> will create a new DKIM 
     key. This newly created key is not automatically activated, as there does
-    not yet exist a public DNS key. </p><p><code>--add-new</code>, <code>-n</code>
+    not yet exist a public DNS key. </p><p><code>--max-initial</code>
+    If you maintain lots of domains and start using <code>opendkim-manage</code>, it 
+    might be better to initialize DKIM object in chunks. This parameter will not 
+    create more than N missing DKIM keys per run. It is only used together 
+    with the <code>--add-missing</code> parameter.</p><p><code>--add-new</code>, <code>-n</code>
     Check the age for DKIM keys and create new keys on demand. If the 
     <code>--expire-after</code> time period is over for a key, <code>opendkim-manage</code> creates
     a new DKIM key. This newly created key is not automatically activated, as 
