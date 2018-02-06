@@ -868,6 +868,8 @@ class DNS(object):
         update.add(rname, self.__cf.dns['ttl'], 'TXT', rcontent)
         response = dns.query.tcp(update, self.__cf.dns['primary_nameserver'])
         dbg(response)
+        verbose(_c("'{0}.{1}.'".format(rname, zone), "yellow") + " TXT: '" +
+                _c("{0}".format(rcontent), "blue") + "' created")
 
     def remove_dkim_key(self, zone, selectorname):
         update = dns.update.Update(zone, keyring=self.__keyring,
@@ -878,6 +880,7 @@ class DNS(object):
         update.delete(rname)
         response = dns.query.tcp(update, self.__cf.dns['primary_nameserver'])
         dbg(response)
+        verbose(_c("'{0}.{1}.'".format(rname, zone), "yellow") + " deleted")
 
     def _get_key_from_file(self):
         with open(self.__cf.dns['tsig_key_file']) as f:

@@ -5,12 +5,14 @@
 .SH DESCRIPTION
 .PP
 This is the configuration file for \fB\fCopendkim\-manage(1)\fR\&. The file is an ini 
-formatted file which defines two sections \fB\fC[global]\fR and \fB\fC[ldap]\fR\&. The first 
-section defines some runtime parameters, while the second section defines all
-LDAP related parameters.
+formatted file which defines three sections \fB\fC[global]\fR, \fB\fC[ldap]\fR and \fB\fCdns\fR\&. The 
+first section defines some runtime parameters, while the second section defines
+all LDAP related parameters. The third section is only required, if you want 
+to do dynamic DNS zone updates using the \fB\fC\-\-update\-dns\fR parameter in 
+\fIopendkim\-manage\fP
 .SH OPTIONS
 .PP
-The following parameters are defined for the global section:
+The following parameters are defined for the \fIglobal\fP section:
 .PP
 \fB\fCexpire_after\fR
     \fIdays\fP If a DKIM key in LDAP is older than these number of days, a new 
@@ -54,7 +56,7 @@ This would create a selector such as: sA7DCF9B4.2018\-01
     run on a light or a dark terminal background. Colors will be improved for
     this.
 .PP
-The following parameters are defined for the ldap section:
+The following parameters are defined for the \fIldap\fP section:
 .PP
 \fB\fCuri\fR
     This defines a LDAP URI. It has the following used form:
@@ -142,6 +144,28 @@ ca = /etc/ssl/certs/your_own_cacert.pem
 .PP
 \fB\fCbindpw\fR
     Either the simple bind or SASL password
+.PP
+The following parameters are defined for the \fIdns\fP section:
+.PP
+\fB\fCprimary_nameserver\fR
+    IP or hostname for the first nameserver that receives DNS updates
+.PP
+\fB\fCtsig_key_file\fR
+    Full path to a TSIG key file (generate it with i.e. \fB\fCdnssec\-keygen\fR)
+.PP
+\fB\fCtsig_key_name\fR
+    The TSIG key name that was used while creating the TSIG key
+.PP
+\fB\fCalgorithm\fR
+    \fIhmac_sha256\fP
+    \fIhmac_sha384\fP
+    \fIhmac_sha512\fP
+    The algorithm that was used for the TSIG key. Currently, only three 
+    algorithms are supported
+.PP
+\fB\fCttl\fR
+    Time to live in seconds. There is no default. If unsure, use 86400 for one
+     day
 .SH AUTHOR
 .PP
 Christian Rößner \[la]c@roessner.co\[ra]

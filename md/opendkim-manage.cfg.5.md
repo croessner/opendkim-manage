@@ -10,14 +10,16 @@ DESCRIPTION
 -----------
 
 This is the configuration file for `opendkim-manage(1)`. The file is an ini 
-formatted file which defines two sections `[global]` and `[ldap]`. The first 
-section defines some runtime parameters, while the second section defines all
-LDAP related parameters.
+formatted file which defines three sections `[global]`, `[ldap]` and `dns`. The 
+first section defines some runtime parameters, while the second section defines
+all LDAP related parameters. The third section is only required, if you want 
+to do dynamic DNS zone updates using the `--update-dns` parameter in 
+*opendkim-manage*
 
 OPTIONS
 -------
 
-The following parameters are defined for the global section:
+The following parameters are defined for the *global* section:
 
 `expire_after`
     *days* If a DKIM key in LDAP is older than these number of days, a new 
@@ -57,7 +59,7 @@ The following parameters are defined for the global section:
     run on a light or a dark terminal background. Colors will be improved for
     this.
 
-The following parameters are defined for the ldap section:
+The following parameters are defined for the *ldap* section:
 
 `uri`
     This defines a LDAP URI. It has the following used form:
@@ -129,6 +131,28 @@ The following parameters are defined for the ldap section:
     
 `bindpw`
     Either the simple bind or SASL password
+
+The following parameters are defined for the *dns* section:
+
+`primary_nameserver`
+    IP or hostname for the first nameserver that receives DNS updates
+
+`tsig_key_file`
+    Full path to a TSIG key file (generate it with i.e. `dnssec-keygen`)
+    
+`tsig_key_name`
+    The TSIG key name that was used while creating the TSIG key
+    
+`algorithm`
+    *hmac_sha256*
+    *hmac_sha384*
+    *hmac_sha512*
+    The algorithm that was used for the TSIG key. Currently, only three 
+    algorithms are supported
+
+`ttl`
+    Time to live in seconds. There is no default. If unsure, use 86400 for one
+     day
 
 AUTHOR
 ------
