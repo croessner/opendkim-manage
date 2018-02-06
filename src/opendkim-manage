@@ -1358,65 +1358,57 @@ class Manager(object):
                   file=sys.stderr)
             sys.exit(os.EX_SOFTWARE)
 
-        ldap_object = list_of_results[0]
-        dn = ldap_object[0]
+        result = self.cmd_testkey(selectorlist=[selectorname])
+        if result[selectorname] or cmd.config.force_active:
+            ldap_object = list_of_results[0]
+            dn = ldap_object[0]
 
-        # Try to find the parent container for the given selector
-        pat = r"^DKIMSelector=[^,]+,(.+)"
-        prog = re.compile(pat, flags=re.UNICODE | re.IGNORECASE)
+            # Try to find the parent container for the given selector
+            pat = r"^DKIMSelector=[^,]+,(.+)"
+            prog = re.compile(pat, flags=re.UNICODE | re.IGNORECASE)
 
-        matchobj = prog.match(dn)
-        if matchobj and matchobj.group(1):
-            dbg("matchobj.group(1)={0}".format(
-                matchobj.group(1)))
-            parent_dn = matchobj.group(1).lstrip()
-        else:
-            print(_c("Error: Can not determ the base URI for the given "
-                     "selector", "red"), file=sys.stderr)
-            sys.exit(os.EX_SOFTWARE)
+            matchobj = prog.match(dn)
+            if matchobj and matchobj.group(1):
+                dbg("matchobj.group(1)={0}".format(
+                    matchobj.group(1)))
+                parent_dn = matchobj.group(1).lstrip()
+            else:
+                print(_c("Error: Can not determ the base URI for the given "
+                         "selector", "red"), file=sys.stderr)
+                sys.exit(os.EX_SOFTWARE)
 
-        # Find old DKIM key, which currently has the DKIMActive attribute set
-        # to TRUE
-        list_of_results = lh.search(
-            search_filter="(&(objectClass=DKIM)(DKIMActive=TRUE))",
-            base=parent_dn)
+            # Find old DKIM key, which currently has the DKIMActive attribute
+            # set to TRUE
+            list_of_results = lh.search(
+                search_filter="(&(objectClass=DKIM)(DKIMActive=TRUE))",
+                base=parent_dn)
 
-        # It MAY exist more than one DKIMActive(TRUE) object
-        dn_with_dkimactive_true = False
-        for ldap_object in iter(list_of_results):
-            # Do not re-add the attribute, if the selector points to a DKIM
-            # key that already is active
-            if ldap_object[0] == dn:
-                dbg("DKIMActive attribute already set "
-                    "to TRUE for dn: {0}".format(dn))
-                dn_with_dkimactive_true = True
-                continue
-            if INTERACT:
-                print("DN: {0}".format(ldap_object[0]))
-            if self.ask(
-                    "Do you really want to disable this DKIM key?"):
-                lh.unset_active(ldap_object[0])
-                verbose("DN: " +
-                        _c("{0}".format(dn), "yellow") +
-                        " now inactive")
-
-        if not dn_with_dkimactive_true:
-            result = self.cmd_testkey(selectorlist=[selectorname])
-            if result[selectorname] or cmd.config.force_active:
-                dbg("Found DNS record or --force-active used")
+            # It MAY exist more than one DKIMActive(TRUE) object
+            for ldap_object in iter(list_of_results):
                 if INTERACT:
-                    print("DN: {0}".format(dn))
-                if self.ask("Do you want to enable this DKIM key?"):
-                    lh.set_active(dn)
+                    print("DN: {0}".format(ldap_object[0]))
+                if self.ask(
+                        "Do you really want to disable this DKIM key?"):
+                    lh.unset_active(ldap_object[0])
                     verbose("DN: " +
                             _c("{0}".format(dn), "yellow") +
-                            " now active")
-            else:
-                # Only print warning, if --active was specified
-                if cmd.config.active:
-                    print(_c("WARN: Not activating DKIM key. No DNS record "
-                             "for selector '{0}'".format(selectorname),
-                             "cyan"), file=sys.stderr)
+                            " now inactive")
+
+            dbg("Found DNS record or --force-active used")
+            if INTERACT:
+                print("DN: {0}".format(dn))
+            if self.ask("Do you want to enable this DKIM key?"):
+                lh.set_active(dn)
+                verbose("DN: " +
+                        _c("{0}".format(dn), "yellow") +
+                        " now active")
+
+        else:
+            # Only print warning, if --active was specified
+            if cmd.config.active:
+                print(_c("WARN: Not activating DKIM key. No DNS record "
+                         "for selector '{0}'".format(selectorname),
+                         "cyan"), file=sys.stderr)
 
     def cmd_testkey(self, selectorlist=None):
         """--testkey command
@@ -1561,16 +1553,20 @@ class Manager(object):
                 dts = sorted(dts, key=itemgetter(2), reverse=True)
                 dbg("dts={0}".format(dts))
 
-                for i, selectorname in enumerate([x[1] for x in iter(dts)]):
-                    dbg("Checking selector '{0}'".format(
-                        selectorname))
-                    # Check if the current key is newer than the active key
-                    if active_dt and dts[i][2] > active_dt:
-                        self.cmd_active(selectorname=dts[i][1])
-                        break
-                    else:
-                        dbg("Selector '{0}' is younger than "
-                            "the active selector".format(selectorname))
+                if active_dt:
+                    for i, selectorname in enumerate([x[1] for x in iter(dts)]):
+                        dbg("Checking selector '{0}'".format(
+                            selectorname))
+                        # Check if the current key is newer than the active key
+                        if dts[i][2] > active_dt:
+                            self.cmd_active(selectorname=dts[i][1])
+                            break
+                        else:
+                            dbg("Selector '{0}' is younger than "
+                                "the active selector".format(selectorname))
+                else:
+                    verbose("No active keys found for domain '" +
+                            _c("{0}".format(domainname), "blue") + "'")
 
     def cmd_add_new(self):
         """--add-new command
