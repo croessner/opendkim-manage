@@ -1,3 +1,13 @@
+Overview
+--------
+
+OpenDKIM is used to sign e-mail messages. It is able to fetch DKIM private keys
+from an LDAP Server. *opendkim-manage* is intended to write such private keys
+into an LDAP Server. *opendkim-genzone* - an OpenDKIM utility - is able to fetch
+these DKIM private keys from the LDAP Server, extract the public DKIM key and 
+create files suitable for use with named(8) to publish these public keys in your
+DNS zone.
+
 Prerequirements
 ---------------
 
