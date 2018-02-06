@@ -1493,20 +1493,16 @@ class Manager(object):
             dts = sorted(dts, key=itemgetter(1), reverse=True)
             dbg("dts={0}".format(dts))
 
-            if len(dts) == 0:
-                dbg("Empty list. Need new key")
-                self.cmd_create(domainname=domainname)
-            else:
-                for selectorname, dt in iter(dts):
-                    # Do not create a new key, if all old keys are younger than
-                    # the current active one
-                    if active_dt and not dt < active_dt:
-                        dbg("dt={0} active_dt={1}".format(
-                            dt, active_dt))
-                        if self._expire_after(selectorname=selectorname):
-                            dbg("Too old. Need new key")
-                            self.cmd_create(domainname=domainname)
-                    break
+            for selectorname, dt in iter(dts):
+                # Do not create a new key, if all old keys are younger than
+                # the current active one
+                if active_dt and not dt < active_dt:
+                    dbg("dt={0} active_dt={1}".format(
+                        dt, active_dt))
+                    if self._expire_after(selectorname=selectorname):
+                        dbg("Too old. Need new key")
+                        self.cmd_create(domainname=domainname)
+                break
 
     def cmd_add_missing(self):
         """--add-missing command
