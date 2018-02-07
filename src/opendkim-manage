@@ -178,45 +178,47 @@ class CfgFile(object):
                 self.ldap[opt] = self.__config.get(s, opt)
 
         # Parse DNS options
-        for opt in iter(dns_opts):
-            self.dns[opt] = None
-        s = "dns"
-        for opt in iter(self.__config.options("dns")):
-            if opt not in dns_opts:
-                print(_c("Error: Unknown option '{0}' in section 'dns'".format(
-                         opt), "red"), file=sys.stderr)
-                sys.exit(os.EX_SOFTWARE)
-            if opt == "algorithm":
-                value = self.__config.get(s, opt)
-                if value == "hmac_sha256":
-                    self.dns[opt] = HMAC_SHA256
-                elif value == "hmac_sha384":
-                    self.dns[opt] = HMAC_SHA384
-                elif value == "hmac_sha512":
-                    self.dns[opt] = HMAC_SHA512
-                else:
-                    print(_c("Error: {0} unsupported HMAC: {1}".format(
-                        opt, value), "red"), file=sys.stderr)
+        if "dns" in self.__config.sections():
+            for opt in iter(dns_opts):
+                self.dns[opt] = None
+            s = "dns"
+            for opt in iter(self.__config.options("dns")):
+                if opt not in dns_opts:
+                    print(_c("Error: Unknown option '{0}' in section "
+                             "'dns'".format(opt), "red"), file=sys.stderr)
                     sys.exit(os.EX_SOFTWARE)
-                continue
-            elif opt == "ttl":
-                try:
-                    self.dns[opt] = self.__config.getint(s, opt)
-                except ValueError:
-                    print(_c("Error: TTL in config file must be an integer: "
-                             "{0}".format(self.__config.get(s, opt)),
-                             "red"), file=sys.stderr)
-                    sys.exit(os.EX_SOFTWARE)
-                continue
+                if opt == "algorithm":
+                    value = self.__config.get(s, opt)
+                    if value == "hmac_sha256":
+                        self.dns[opt] = HMAC_SHA256
+                    elif value == "hmac_sha384":
+                        self.dns[opt] = HMAC_SHA384
+                    elif value == "hmac_sha512":
+                        self.dns[opt] = HMAC_SHA512
+                    else:
+                        print(_c("Error: {0} unsupported HMAC: {1}".format(
+                            opt, value), "red"), file=sys.stderr)
+                        sys.exit(os.EX_SOFTWARE)
+                    continue
+                elif opt == "ttl":
+                    try:
+                        self.dns[opt] = self.__config.getint(s, opt)
+                    except ValueError:
+                        print(_c("Error: TTL in config file must be an "
+                                 "integer: {0}".format(
+                                    self.__config.get(s, opt)
+                                 ), "red"), file=sys.stderr)
+                        sys.exit(os.EX_SOFTWARE)
+                    continue
 
-            if opt == "tsig_key_file":
-                value = self.__config.get(s, opt)
-                if not os.path.exists(value):
-                    print(_c("Error: Can not access TSIG key file '{0}'".format(
-                          value), "red"), file=sys.stderr)
-                    sys.exit(os.EX_SOFTWARE)
+                if opt == "tsig_key_file":
+                    value = self.__config.get(s, opt)
+                    if not os.path.exists(value):
+                        print(_c("Error: Can not access TSIG key file "
+                                 "'{0}'".format(value), "red"), file=sys.stderr)
+                        sys.exit(os.EX_SOFTWARE)
 
-            self.dns[opt] = self.__config.get(s, opt)
+                self.dns[opt] = self.__config.get(s, opt)
 
 
 class Cmd(object):
