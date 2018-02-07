@@ -6,7 +6,9 @@ from an LDAP Server. *opendkim-manage* is intended to write such private keys
 into an LDAP Server. *opendkim-genzone* - an OpenDKIM utility - is able to fetch
 these DKIM private keys from the LDAP Server, extract the public DKIM key and 
 create files suitable for use with named(8) to publish these public keys in your
-DNS zone.
+DNS zone. If your OpenDKIM box has direct access to a primary DNS server, 
+*opendkim-manage* can also do dynamic zone updates. Currently only one DNS 
+server is supported.
 
 Prerequirements
 ---------------
