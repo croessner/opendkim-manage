@@ -812,8 +812,90 @@ class Selector(object):
 
     name = property(fget=get_name)
 
+
+class InvalidTSIGKeyFile(Exception):
+    """Raise an exception, if the content of the TSIG key file is wrong
+    """
+    pass
+
+
+class DNS(object):
+    """Add and delete DNS records
+    """
+    def __init__(self, cf):
+        """
+        :param cf: config file object
+        """
+        self.__cf = cf
+        self.__keyring = dns.tsigkeyring.from_text({
+            self.__cf.dns['tsig_key_name']: self._get_key_from_file()
+        })
+
+    def add_dkim_key(self, zone, selectorname, rcontent):
+        """Add a TXT record for a DKIM key
+
+        :param zone: The domainname of the zone
+        :param selectorname: The selector name
+        :param rcontent: Text for the TXT record. The string must not be
+        normalized for DNS, as this module does take care for it.
+        """
+        update = dns.update.Update(zone, keyring=self.__keyring,
+                                   keyname=self.__cf.dns['tsig_key_name'],
+                                   keyalgorithm=self.__cf.dns['algorithm'])
+        rname = selectorname + "._domainkey"
+        dbg(rname)
+        rcontent = DNS._make255(rcontent)
+        dbg(rcontent)
+        update.add(rname, self.__cf.dns['ttl'], 'TXT', rcontent)
+        response = dns.query.tcp(update, self.__cf.dns['primary_nameserver'])
+        dbg(response)
+        verbose(_c("'{0}.{1}.'".format(rname, zone), "yellow") + " TXT: '" +
+                _c("{0}".format(rcontent), "blue") + "' created")
+
+    def remove_dkim_key(self, zone, selectorname):
+        """Remove a DKIM TXT record from DNS
+
+        :param zone: The domainname of the zone
+        :param selectorname: The selector name
+        """
+        update = dns.update.Update(zone, keyring=self.__keyring,
+                                   keyname=self.__cf.dns['tsig_key_name'],
+                                   keyalgorithm=self.__cf.dns['algorithm'])
+        rname = selectorname + "._domainkey"
+        dbg(rname)
+        update.delete(rname)
+        response = dns.query.tcp(update, self.__cf.dns['primary_nameserver'])
+        dbg(response)
+        verbose(_c("'{0}.{1}.'".format(rname, zone), "yellow") + " deleted")
+
+    def _get_key_from_file(self):
+        """Read a TSIG formatted key and extract the pure key
+        """
+        with open(self.__cf.dns['tsig_key_file']) as f:
+            while True:
+                line = f.readline()
+                if line == "":
+                    break
+                if line.startswith("Key:"):
+                    return line.split("Key:")[1].strip()
+        raise InvalidTSIGKeyFile("TSIG key file format error")
+
     @staticmethod
-    def dns_calculated_rname(selector, domain):
+    def _make255(arg):
+        """A string must not be more than 255 bytes. Split the record in chunks
+
+        :param arg: A TXT string that must be split into chunks
+        :return: Normalized string suiteable for DNS updates
+        """
+        i = 0
+        t = list()
+        while i <= len(arg):
+            t.append('"' + arg[i:i + 255] + '"')
+            i += 255
+        return ' '.join(t)
+
+    @staticmethod
+    def calculated_rname(selector, domain):
         """Check, if the given record name conforms to DNS RFC1035
         """
         assert isinstance(selector, str)
@@ -838,66 +920,6 @@ class Selector(object):
             raise InvalidSelectorname("Record too long: {0}>253".format(count))
 
         return selector
-
-
-class InvalidTSIGKeyFile(Exception):
-    """Raise an exception, if the content of the TSIG key file is wrong
-    """
-    pass
-
-
-class DNS(object):
-    """Add and delete DNS records
-    """
-    def __init__(self, cf):
-        self.__cf = cf
-        self.__keyring = dns.tsigkeyring.from_text({
-            self.__cf.dns['tsig_key_name']: self._get_key_from_file()
-        })
-
-    def add_dkim_key(self, zone, selectorname, rcontent):
-        update = dns.update.Update(zone, keyring=self.__keyring,
-                                   keyname=self.__cf.dns['tsig_key_name'],
-                                   keyalgorithm=self.__cf.dns['algorithm'])
-        rname = selectorname + "._domainkey"
-        dbg(rname)
-        rcontent = DNS._make255(rcontent)
-        dbg(rcontent)
-        update.add(rname, self.__cf.dns['ttl'], 'TXT', rcontent)
-        response = dns.query.tcp(update, self.__cf.dns['primary_nameserver'])
-        dbg(response)
-        verbose(_c("'{0}.{1}.'".format(rname, zone), "yellow") + " TXT: '" +
-                _c("{0}".format(rcontent), "blue") + "' created")
-
-    def remove_dkim_key(self, zone, selectorname):
-        update = dns.update.Update(zone, keyring=self.__keyring,
-                                   keyname=self.__cf.dns['tsig_key_name'],
-                                   keyalgorithm=self.__cf.dns['algorithm'])
-        rname = selectorname + "._domainkey"
-        dbg(rname)
-        update.delete(rname)
-        response = dns.query.tcp(update, self.__cf.dns['primary_nameserver'])
-        dbg(response)
-        verbose(_c("'{0}.{1}.'".format(rname, zone), "yellow") + " deleted")
-
-    def _get_key_from_file(self):
-        with open(self.__cf.dns['tsig_key_file']) as f:
-            while True:
-                line = f.readline()
-                if line == "":
-                    break
-                if line.startswith("Key:"):
-                    return line.split("Key:")[1].strip()
-        raise InvalidTSIGKeyFile("TSIG key file format error")
-
-    @staticmethod
-    def _make255(arg):
-        i = 0
-        t = list()
-        while i <= len(arg):
-            t.append('"' + arg[i:i + 255] + '"')
-            i += 255
-        return ' '.join(t)
 
 
 class Manager(object):
@@ -1008,7 +1030,7 @@ class Manager(object):
                          "red"), file=sys.stderr)
                 sys.exit(os.EX_SOFTWARE)
             try:
-                selector = Selector.dns_calculated_rname(
+                selector = DNS.calculated_rname(
                     cmd.config.selectorname[0], cmd.config.domain[0])
             except InvalidSelectorname as rname_err:
                 print(_c("Error: DNS rname error for selector '{0}': "
@@ -1112,7 +1134,7 @@ class Manager(object):
 
                             dbg("sel.name={0}".format(sel.name))
                             try:
-                                selector = Selector.dns_calculated_rname(
+                                selector = DNS.calculated_rname(
                                     sel.name, domainname)
                             except InvalidSelectorname as rname_err:
                                 print(_c(
