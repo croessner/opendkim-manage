@@ -105,8 +105,8 @@ domain = associatedDomain
 .fi
 .RE
 .PP
-\fB\fCusetls\fR
-    \fIyes\fP or \fIno\fP This enables TLS for LDAP connections.
+\fB\fCuse_starttls\fR
+    \fIyes\fP or \fIno\fP This enables STARTTLS for LDAP connections.
 .PP
 \fB\fCreqcert\fR
     \fInever\fP

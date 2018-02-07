@@ -96,8 +96,8 @@ The following parameters are defined for the *ldap* section:
     
     domain = associatedDomain
     
-`usetls`
-    *yes* or *no* This enables TLS for LDAP connections.
+`use_starttls`
+    *yes* or *no* This enables STARTTLS for LDAP connections.
     
 `reqcert`
     *never*

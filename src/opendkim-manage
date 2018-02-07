@@ -109,7 +109,7 @@ class CfgFile(object):
         )
         ldap_opts = (
             "uri", "bindmethod", "saslmech", "filter", "domain",
-            "usetls", "reqcert", "ciphers", "cert", "key", "ca",
+            "use_starttls", "reqcert", "ciphers", "cert", "key", "ca",
             "authz_id", "binddn", "bindpw"
         )
         dns_opts = (
@@ -169,7 +169,7 @@ class CfgFile(object):
                 print(_c("Error: Unknown option '{0}' in section 'ldap'".format(
                          opt), "red"), file=sys.stderr)
                 sys.exit(os.EX_SOFTWARE)
-            if opt == "usetls":
+            if opt == "use_starttls":
                 try:
                     self.ldap[opt] = self.__config.getboolean(s, opt)
                 except ValueError:
@@ -445,7 +445,7 @@ class LDAP(object):
         :param ldapcfg: Dictionary that contains LDAP settings
         :var self.__ldapcfg: Configuration data structure for LDAP
         :var self.__uriparts: Contains split LDAP uri parts
-        :var self.__tls: Flag that indicates TLS usage
+        :var self.__starttls: Flag that indicates TLS usage
         :var self.__sasl: Flag that indicates SASL usage
         :var self.__auth_token: If SASL is defined, store an auth token
         :var self.__con: LDAP connection handle
@@ -454,7 +454,6 @@ class LDAP(object):
         """
         self.__ldapcfg = ldapcfg
         self.__urlparts = None
-        self.__tls = False
         self.__sasl = False
         self.__auth_token = None
         self.__con = None
@@ -474,87 +473,82 @@ class LDAP(object):
             sys.exit(os.EX_SOFTWARE)
         self.__urlparts = ldapurl.LDAPUrl(self.__ldapcfg['uri'])
 
-        if self.__ldapcfg['usetls']:
-            reqcert = None
-            if self.__ldapcfg['reqcert']:
-                if self.__ldapcfg['reqcert'] == "never":
-                    reqcert = ldap.OPT_X_TLS_NEVER
-                    dbg("reqcert=NEVER")
-                elif self.__ldapcfg['reqcert'] == "allow":
-                    reqcert = ldap.OPT_X_TLS_ALLOW
-                    dbg("reqcert=ALLOW")
-                elif self.__ldapcfg['reqcert'] == "try":
-                    reqcert = ldap.OPT_X_TLS_TRY
-                    dbg("reqcert=TRY")
-                elif self.__ldapcfg['reqcert'] == "demand":
-                    reqcert = ldap.OPT_X_TLS_DEMAND
-                    dbg("reqcert=DEMAND")
-                else:
-                    print(_c("Error: Unsupport 'reqcert' argument", "red"),
-                          file=sys.stderr)
-                    sys.exit(os.EX_SOFTWARE)
-
+        if self.__ldapcfg['reqcert']:
+            if self.__ldapcfg['reqcert'] == "never":
+                reqcert = ldap.OPT_X_TLS_NEVER
+                dbg("reqcert=NEVER")
+            elif self.__ldapcfg['reqcert'] == "allow":
+                reqcert = ldap.OPT_X_TLS_ALLOW
+                dbg("reqcert=ALLOW")
+            elif self.__ldapcfg['reqcert'] == "try":
+                reqcert = ldap.OPT_X_TLS_TRY
+                dbg("reqcert=TRY")
+            elif self.__ldapcfg['reqcert'] == "demand":
+                reqcert = ldap.OPT_X_TLS_DEMAND
+                dbg("reqcert=DEMAND")
+            else:
+                print(_c("Error: Unsupport 'reqcert' argument", "red"),
+                      file=sys.stderr)
+                sys.exit(os.EX_SOFTWARE)
             ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, reqcert)
-            if self.__ldapcfg['ciphers']:
-                ldap.set_option(
-                    ldap.OPT_X_TLS_CIPHER_SUITE, self.__ldapcfg['ciphers'])
-                dbg("set ciphers")
 
-            if self.__ldapcfg['cert']:
-                if not os.path.exists(self.__ldapcfg['cert']):
-                    print(_c("Error: Can not read LDAP TLS cert file", "red"),
-                          file=sys.stderr)
-                    sys.exit(os.EX_SOFTWARE)
-                ldap.set_option(
-                    ldap.OPT_X_TLS_CERTFILE, self.__ldapcfg['cert'])
-                dbg("Set cert to {0}".format(self.__ldapcfg['cert']))
-            if self.__ldapcfg['key']:
-                if not os.path.exists(self.__ldapcfg['key']):
-                    print(_c("Error: Can not read LDAP TLS key file", "red"),
-                          file=sys.stderr)
-                    sys.exit(os.EX_SOFTWARE)
-                ldap.set_option(
-                    ldap.OPT_X_TLS_KEYFILE, self.__ldapcfg['key'])
-                dbg("Set key to {0}".format(self.__ldapcfg['key']))
-            if self.__ldapcfg['ca']:
-                if not os.path.exists(self.__ldapcfg['ca']):
-                    print(_c("Error: Can not read LDAP TLS CA file", "red"),
-                          file=sys.stderr)
-                    sys.exit(os.EX_SOFTWARE)
-                ldap.set_option(
-                    ldap.OPT_X_TLS_CACERTFILE, self.__ldapcfg['ca'])
-                dbg("Set ca to {0}".format(self.__ldapcfg['ca']))
+        if self.__ldapcfg['ciphers']:
+            ldap.set_option(
+                ldap.OPT_X_TLS_CIPHER_SUITE, self.__ldapcfg['ciphers'])
+            dbg("set ciphers")
 
-            dbg("TLS enabled")
-            self.__tls = True
+        if self.__ldapcfg['cert']:
+            if not os.path.exists(self.__ldapcfg['cert']):
+                print(_c("Error: Can not read LDAP TLS cert file", "red"),
+                      file=sys.stderr)
+                sys.exit(os.EX_SOFTWARE)
+            ldap.set_option(
+                ldap.OPT_X_TLS_CERTFILE, self.__ldapcfg['cert'])
+            dbg("Set cert to {0}".format(self.__ldapcfg['cert']))
+        if self.__ldapcfg['key']:
+            if not os.path.exists(self.__ldapcfg['key']):
+                print(_c("Error: Can not read LDAP TLS key file", "red"),
+                      file=sys.stderr)
+                sys.exit(os.EX_SOFTWARE)
+            ldap.set_option(
+                ldap.OPT_X_TLS_KEYFILE, self.__ldapcfg['key'])
+            dbg("Set key to {0}".format(self.__ldapcfg['key']))
+        if self.__ldapcfg['ca']:
+            if not os.path.exists(self.__ldapcfg['ca']):
+                print(_c("Error: Can not read LDAP TLS CA file", "red"),
+                      file=sys.stderr)
+                sys.exit(os.EX_SOFTWARE)
+            ldap.set_option(
+                ldap.OPT_X_TLS_CACERTFILE, self.__ldapcfg['ca'])
+            dbg("Set ca to {0}".format(self.__ldapcfg['ca']))
 
-            if self.__ldapcfg['bindmethod'] == "sasl":
-                if self.__ldapcfg['saslmech']:
-                    if self.__ldapcfg['binddn'] and self.__ldapcfg['bindpw']:
-                        if self.__ldapcfg['saslmech'].lower() == "digest-md5":
-                            self.__auth_token = ldap.sasl.digest_md5(
-                                self.__ldapcfg['binddn'],
-                                self.__ldapcfg['bindpw']
-                            )
-                            dbg("SASL/DIGEST-MD5")
-                        elif self.__ldapcfg['saslmech'].lower() == "cram-md5":
-                            self.__auth_token = ldap.sasl.cram_md5(
-                                self.__ldapcfg['binddn'],
-                                self.__ldapcfg['bindpw']
-                            )
-                            dbg("SASL/CRAM-MD5")
-                    if self.__ldapcfg['authz_id']:
-                        if self.__ldapcfg['saslmech'].lower() == "external":
-                            self.__auth_token = ldap.sasl.external(
-                                self.__ldapcfg['authz_id'])
-                            dbg("SASL/EXTERNAL")
-                        elif self.__ldapcfg['saslmech'].lower() == "gssapi":
-                            self.__auth_token = ldap.sasl.gssapi(
-                                self.__ldapcfg['authz_id'])
-                            dbg("SASL/GSSAPI")
+        if self.__ldapcfg['bindmethod'] == "sasl":
+            if self.__ldapcfg['saslmech']:
+                if self.__ldapcfg['binddn'] and self.__ldapcfg['bindpw']:
+                    if self.__ldapcfg['saslmech'].lower() == "digest-md5":
+                        self.__auth_token = ldap.sasl.digest_md5(
+                            self.__ldapcfg['binddn'],
+                            self.__ldapcfg['bindpw']
+                        )
+                        dbg("SASL/DIGEST-MD5")
+                    elif self.__ldapcfg['saslmech'].lower() == "cram-md5":
+                        self.__auth_token = ldap.sasl.cram_md5(
+                            self.__ldapcfg['binddn'],
+                            self.__ldapcfg['bindpw']
+                        )
+                        dbg("SASL/CRAM-MD5")
+                if self.__ldapcfg['authz_id']:
+                    if self.__ldapcfg['saslmech'].lower() == "external":
+                        self.__auth_token = ldap.sasl.external(
+                            self.__ldapcfg['authz_id'])
+                        dbg("SASL/EXTERNAL")
+                    elif self.__ldapcfg['saslmech'].lower() == "gssapi":
+                        self.__auth_token = ldap.sasl.gssapi(
+                            self.__ldapcfg['authz_id'])
+                        dbg("SASL/GSSAPI")
 
-                    dbg("SASL enabled")
-                    self.__sasl = True
+                dbg("SASL enabled")
+                self.__sasl = True
 
         self.configured = True
 
@@ -566,7 +560,9 @@ class LDAP(object):
         try:
             self.__con = ldap.initialize(con_string)
             dbg("connected to {0}".format(con_string))
-            if self.__tls:
+            # Silently ignore starttls, if ldaps was given
+            if self.__ldapcfg['use_starttls'] and \
+                    self.__urlparts.urlscheme != "ldaps":
                 self.__con.start_tls_s()
                 dbg("STARTTLS")
             if self.__sasl:
