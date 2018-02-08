@@ -1837,8 +1837,13 @@ class Manager(object):
         param bits: bits The key length in bits
         :return: Private key in PEM format
         """
-        print("Generating RSA key with {0} bits".format(bits))
-        new_key = RSA.gen_key(bits, 65537)
+
+        # noinspection PyUnusedLocal
+        def keygen_callback(p, n, out):
+            pass
+
+        verbose("Generating RSA key with {0} bits".format(bits))
+        new_key = RSA.gen_key(bits, 65537, callback=keygen_callback)
         memory = BIO.MemoryBuffer()
         new_key.save_key_bio(memory, cipher=None)
         private_key = memory.getvalue()
