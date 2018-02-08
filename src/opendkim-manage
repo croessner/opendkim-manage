@@ -50,6 +50,7 @@ import ldap.sasl
 import ldapurl
 
 from dns.tsig import HMAC_SHA256, HMAC_SHA384, HMAC_SHA512
+from M2Crypto import RSA, BIO
 
 try:
     from colorama import init, Fore, Style
@@ -58,7 +59,6 @@ try:
 except ImportError:
     have_color = False
 
-from M2Crypto import RSA, BIO
 
 __author__ = "Christian Rößner"
 __copyright__ = "Copyright (c) 2018 by R.N.S."
@@ -900,12 +900,7 @@ class DNS(object):
         :param arg: A TXT string that must be split into chunks
         :return: Normalized string suiteable for DNS updates
         """
-        i = 0
-        t = list()
-        while i <= len(arg):
-            t.append('"' + arg[i:i + 255] + '"')
-            i += 255
-        return ' '.join(t)
+        return '" "'.join([arg[i:i + 255] for i in xrange(0, len(arg), 255)])
 
     @staticmethod
     def calculated_rname(selector, domain):
@@ -1485,8 +1480,9 @@ class Manager(object):
                     for ldap_object in iter(list_of_results):
                         selectorname = ldap_object[1]['DKIMSelector'][0]
                         domainname = ldap_object[1]['DKIMDomain'][0]
+                        priv_key = ldap_object[1]['DKIMKey'][0]
                         selectorlist.append(selectorname)
-                        domains[selectorname] = domainname
+                        domains[selectorname] = (domainname, priv_key)
             else:
                 selectorlist = cmd.config.selectorname
 
@@ -1501,10 +1497,12 @@ class Manager(object):
                     attrs=['DKIMDomain', 'DKIMKey'])
             if len(list_of_results) > 0 or len(domains) > 0:
                 if selector in domains:
-                    domainname = domains[selector]
+                    domainname = domains[selector][0]
+                    priv_key = domains[selector][1]
                 else:
                     ldap_object = list_of_results[0]
                     domainname = ldap_object[1]['DKIMDomain'][0]
+                    priv_key = ldap_object[1]['DKIMKey'][0]
 
                 dns_query = "{0}._domainkey.{1}".format(selector, domainname)
 
@@ -1514,7 +1512,29 @@ class Manager(object):
                     answers = dns.resolver.query(dns_query, "TXT")
                     for rdata in answers:
                         if not result[selector]:
-                            result[selector] = True
+                            crt_begin = "-----BEGIN PUBLIC KEY-----\n"
+                            crt_end = "-----END PUBLIC KEY-----\n"
+                            crt = "".join(rdata.strings)
+                            crt = crt[crt.find('p=')+2:]
+                            # Reconstruct public certificate
+                            n = 64
+                            crt = (crt_begin +
+                                   "\n".join(
+                                       [crt[i:i+n] for i in xrange(
+                                           0, len(crt), n)]) +
+                                   '\n' +
+                                   crt_end)
+                            # Create a new public cert from the RSA private key
+                            # and compare it with the public cert from DNS
+                            memory = BIO.MemoryBuffer()
+                            new_key = RSA.load_key_string(priv_key)
+                            new_key.save_pub_key_bio(memory)
+                            if crt == memory.getvalue():
+                                verbose("DNS record OK")
+                                result[selector] = True
+                            else:
+                                verbose("DNS record does not belong to "
+                                        "private RSA key from LDAP")
                         if cmd.config.testkey:
                             print("TXT: {0}".format("".join(rdata.strings)))
                 except dns.resolver.NXDOMAIN:
