@@ -591,14 +591,25 @@ class LDAP(object):
 
         self.connected = True
 
-    def search(self, domain=None, search_filter=None, base=None):
+    def search(self, domain=None, search_filter=None, base=None, attrs=None):
         """Common LDAP search
 
         :param domain: Searches the default filter for this domain
         :param search_filter: Custom search filter for LDAP
         :param base: Custom LDAP search base with sub scope
+        :param attrs: List of custom LDAP result attributes
         :return: Return a result list
         """
+        if domain:
+            assert isinstance(domain, str)
+        if search_filter:
+            assert isinstance(search_filter, str)
+        if base:
+            assert isinstance(base, str)
+
+        assert isinstance(attrs, list)
+        assert len(attrs) > 0
+
         if not self.configured:
             self.initialize()
         if self.configured:
@@ -612,15 +623,11 @@ class LDAP(object):
                 if not base:
                     base = self.__urlparts.dn
                 dbg("filter={0}".format(search_filter))
+                dbg("attrs={0}".format(attrs))
                 rid = self.__con.search(base,
                                         self.__urlparts.scope,
                                         search_filter,
-                                        [self.__ldapcfg['domain'],
-                                         'DKIMDomain',
-                                         'DKIMSelector',
-                                         'DKIMActive',
-                                         'modifyTimestamp',
-                                         'createTimestamp'])
+                                        attrs)
                 raw_result = self.__con.result(rid, True, 60)
                 dbg("raw_result={0}".format(pformat(raw_result)))
                 if raw_result[0] is None:
@@ -966,7 +973,7 @@ class Manager(object):
 
         for domain in iter(domains):
             # Get DN for a domain as a new search base
-            list_of_results = lh.search(domain)
+            list_of_results = lh.search(domain, attrs=[cf.ldap['domain']])
             for ldap_object in iter(list_of_results):
                 dn = None
                 domainname = None
@@ -987,7 +994,9 @@ class Manager(object):
                 if not error:
                     # Retrieve all DKIMSelectors
                     list_of_results2 = lh.search(
-                        search_filter="(objectClass=DKIM)", base=dn)
+                        search_filter="(objectClass=DKIM)",
+                        base=dn,
+                        attrs=['DKIMSelector', 'DKIMActive', 'createTimestamp'])
                     for ldap_object2 in iter(list_of_results2):
                         try:
                             dkimselectors = ldap_object2[1]['DKIMSelector']
@@ -1045,7 +1054,8 @@ class Manager(object):
                 sys.exit(os.EX_SOFTWARE)
 
             # Get DN suffix for the new selector object
-            list_of_results = lh.search(cmd.config.domain[0])
+            list_of_results = lh.search(cmd.config.domain[0],
+                                        attrs=[cf.ldap['domain']])
             if len(list_of_results) == 0:
                 print(_c("Error: Domain '{0}' does not exist".format(
                     cmd.config.domain[0]), "red"), file=sys.stderr)
@@ -1057,7 +1067,7 @@ class Manager(object):
             # Make sure, we do not have an LDAP object already
             list_of_results = lh.search(
                 search_filter="(&(objectClass=DKIM)(DKIMSelector={0}))".format(
-                    selector), base=dn)
+                    selector), base=dn, attrs=['DKIMSelector'])
             if len(list_of_results) != 0:
                 print(_c("Error: Object for selector '{0}' already "
                          "exists".format(selector), "red"), file=sys.stderr)
@@ -1098,7 +1108,7 @@ class Manager(object):
 
             for domain in iter(domains):
                 dbg("domain={0}".format(domain))
-                list_of_results = lh.search(domain)
+                list_of_results = lh.search(domain, attrs=[cf.ldap['domain']])
                 if len(list_of_results) == 0:
                     print(_c("Error: There do not exist any domains yet",
                              "red"))
@@ -1198,7 +1208,9 @@ class Manager(object):
         for selector in iter(selectors):
             list_of_results = lh.search(
                 search_filter="(&(objectClass=DKIM)(DKIMSelector={0}))".format(
-                    selector))
+                    selector),
+                attrs=['DKIMSelector', 'DKIMDomain', 'DKIMActive',
+                       'modifyTimestamp'])
             if len(list_of_results) == 0:
                 print(_c("WARN: Selector '{0}' does not exist".format(
                     selector), "cyan"), file=sys.stderr)
@@ -1285,7 +1297,8 @@ class Manager(object):
 
         list_of_results = lh.search(
             search_filter="(&(objectClass=DKIM)(DKIMSelector={0}))".format(
-                selectorname))
+                selectorname),
+            attrs=['DKIMSelector', 'createTimestamp'])
 
         if len(list_of_results) == 0:
             print(_c("WARN: Selector '{0}' does not exist".format(
@@ -1378,7 +1391,8 @@ class Manager(object):
 
         list_of_results = lh.search(
             search_filter="(&(objectClass=DKIM)(DKIMSelector={0}))".format(
-                selectorname))
+                selectorname),
+            attrs=['DKIMSelector'])
         if len(list_of_results) == 0:
             print(_c("Error: Specified DKIM selector does not exist", "red"),
                   file=sys.stderr)
@@ -1407,7 +1421,8 @@ class Manager(object):
             # set to TRUE
             list_of_results = lh.search(
                 search_filter="(&(objectClass=DKIM)(DKIMActive=TRUE))",
-                base=parent_dn)
+                base=parent_dn,
+                attrs=['DKIMActive'])
 
             # It MAY exist more than one DKIMActive(TRUE) object
             for ldap_object in iter(list_of_results):
@@ -1465,7 +1480,8 @@ class Manager(object):
                 for domain in iter(cmd.config.domain):
                     list_of_results = lh.search(
                         search_filter="(&(objectClass=DKIM)"
-                                      "(DKIMDomain={0}))".format(domain))
+                                      "(DKIMDomain={0}))".format(domain),
+                        attrs=['DKIMSelector', 'DKIMDomain', 'DKIMKey'])
                     for ldap_object in iter(list_of_results):
                         selectorname = ldap_object[1]['DKIMSelector'][0]
                         domainname = ldap_object[1]['DKIMDomain'][0]
@@ -1481,7 +1497,8 @@ class Manager(object):
             if len(domains) == 0:
                 list_of_results = lh.search(
                     search_filter="(&(objectClass=DKIM)"
-                                  "(DKIMSelector={0}))".format(selector))
+                                  "(DKIMSelector={0}))".format(selector),
+                    attrs=['DKIMDomain', 'DKIMKey'])
             if len(list_of_results) > 0 or len(domains) > 0:
                 if selector in domains:
                     domainname = domains[selector]
@@ -1535,7 +1552,7 @@ class Manager(object):
 
         # Iterate through domain objects
         for domain in iter(domains):
-            list_of_results = lh.search(domain)
+            list_of_results = lh.search(domain, attrs=[cf.ldap['domain']])
             for ldap_object in iter(list_of_results):
                 dn = ldap_object[0]
                 try:
@@ -1550,7 +1567,8 @@ class Manager(object):
                 # Get full list of selector objects per domain
                 list_of_results2 = lh.search(
                     search_filter="(&(objectClass=DKIM)(DKIMSelector=*))",
-                    base=dn)
+                    base=dn,
+                    attrs=['DKIMSelector', 'DKIMActive', 'createTimestamp'])
                 dts = list()
                 active_dt = None
                 for ldap_object2 in iter(list_of_results2):
@@ -1566,8 +1584,7 @@ class Manager(object):
                         continue
                     create_timestamp = ldap_object2[1]['createTimestamp'][0]
 
-                    dbg(""
-                        "dn={0}, create_timestamp={1}".format(
+                    dbg("dn={0}, create_timestamp={1}".format(
                          dn_sel, create_timestamp))
 
                     dts.append((
@@ -1607,7 +1624,7 @@ class Manager(object):
             verbose("Command add-new", "green")
 
         # Iterate through all domains
-        list_of_results = lh.search()
+        list_of_results = lh.search(attrs=[cf.ldap['domain']])
         for ldap_object in iter(list_of_results):
             valid_key = False
             dn = ldap_object[0]
@@ -1622,7 +1639,9 @@ class Manager(object):
 
             # Get full list of selector objects per domain
             list_of_results2 = lh.search(
-                search_filter="(&(objectClass=DKIM)(DKIMSelector=*))", base=dn)
+                search_filter="(&(objectClass=DKIM)(DKIMSelector=*))",
+                base=dn,
+                attrs=['DKIMSelector', 'DKIMActive', 'createTimestamp'])
             dts = list()
             active_dt = None
             for ldap_object2 in iter(list_of_results2):
@@ -1686,7 +1705,7 @@ class Manager(object):
             count_initial = False
 
         # Iterate through all domains
-        list_of_results = lh.search()
+        list_of_results = lh.search(attrs=[cf.ldap['domain']])
         counter = 0
         for ldap_object in iter(list_of_results):
             if count_initial and counter == cmd.config.max_initial:
@@ -1704,7 +1723,9 @@ class Manager(object):
 
             # Get full list of selector objects per domain
             list_of_results2 = lh.search(
-                search_filter="(&(objectClass=DKIM)(DKIMSelector=*))", base=dn)
+                search_filter="(&(objectClass=DKIM)(DKIMSelector=*))",
+                base=dn,
+                attrs=['DKIMSelector'])
             if len(list_of_results2) == 0:
                 dbg("Need DKIM object")
                 self.cmd_create(domainname=domainname)
@@ -1732,7 +1753,7 @@ class Manager(object):
         self.cmd_rotate()
 
         # Iterate through all domains
-        list_of_results = lh.search()
+        list_of_results = lh.search(attrs=[cf.ldap['domain']])
         for ldap_object in iter(list_of_results):
             dn = ldap_object[0]
             try:
@@ -1746,7 +1767,9 @@ class Manager(object):
 
             # Get full list of selector objects per domain
             list_of_results2 = lh.search(
-                search_filter="(&(objectClass=DKIM)(DKIMSelector=*))", base=dn)
+                search_filter="(&(objectClass=DKIM)(DKIMSelector=*))",
+                base=dn,
+                attrs=['DKIMSelector', 'DKIMActive', 'createTimestamp'])
             dts = list()
             active_dt = None
             for ldap_object2 in iter(list_of_results2):
