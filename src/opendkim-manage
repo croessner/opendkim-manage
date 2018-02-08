@@ -380,10 +380,16 @@ class Cmd(object):
                      "allowed", "red"), file=sys.stderr)
             sys.exit(os.EX_USAGE)
 
-        # Either --selectorname or --domain is required
         if self.config.testkey and \
                 self.config.domain and \
                 self.config.selectorname:
+            print(_c("Error: Only one of '--domain' or '--selectorname' "
+                     "is required", "red"), file=sys.stderr)
+            sys.exit(os.EX_USAGE)
+
+        # Either --selectorname or --domain is required
+        if self.config.testkey and not \
+                (self.config.domain or self.config.selectorname):
             print(_c("Error: Option '--domain' or '--selectorname' is "
                      "required", "red"), file=sys.stderr)
             sys.exit(os.EX_USAGE)
