@@ -1086,7 +1086,7 @@ class Manager(object):
                         " created")
                 if cmd.config.update_dns:
                     ns = DNS(cf)
-                    rcontent = "v=DKIM1; k=rsa; s=email; p=" + \
+                    rcontent = "v=DKIM1; k=rsa; h=sha256; p=" + \
                                self.raw_cert(pub_key)
                     ns.add_dkim_key(cmd.config.domain[0], selector, rcontent)
 
