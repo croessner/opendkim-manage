@@ -900,7 +900,12 @@ class DNS(object):
         :param arg: A TXT string that must be split into chunks
         :return: Normalized string suiteable for DNS updates
         """
-        return '" "'.join([arg[i:i + 255] for i in xrange(0, len(arg), 255)])
+        i = 0
+        t = list()
+        while i <= len(arg):
+            t.append('"' + arg[i:i + 255] + '"')
+            i += 255
+        return ' '.join(t)
 
     @staticmethod
     def calculated_rname(selector, domain):
@@ -1169,7 +1174,7 @@ class Manager(object):
                             if cmd.config.update_dns:
                                 try:
                                     ns = DNS(cf)
-                                    rcontent = "v=DKIM1; k=rsa; s=email; " \
+                                    rcontent = "v=DKIM1; k=rsa; h=sha256; " \
                                                "p=" + self.raw_cert(pub_key)
                                     ns.add_dkim_key(domain, selector, rcontent)
                                 except Exception as ns_err:
@@ -1664,6 +1669,7 @@ class Manager(object):
                 attrs=['DKIMSelector', 'DKIMActive', 'createTimestamp'])
             dts = list()
             active_dt = None
+            active_selectorname = None
             for ldap_object2 in iter(list_of_results2):
                 dn_sel = ldap_object2[0]
                 selectorname = ldap_object2[1]['DKIMSelector'][0]
@@ -1678,6 +1684,7 @@ class Manager(object):
                         break
                     active_dt = self.convert_ldaptime_to_datetime(
                         ldap_object2[1]['createTimestamp'][0])
+                    active_selectorname = selectorname
                     continue
                 create_timestamp = ldap_object2[1]['createTimestamp'][0]
 
@@ -1705,6 +1712,13 @@ class Manager(object):
                         dbg("Too old. Need new key")
                         self.cmd_create(domainname=domainname)
                 break
+            else:
+                # No other keys than the active key is present
+                dbg("Empty dts. active_selectorname={0}".format(
+                    active_selectorname))
+                if self._expire_after(selectorname=active_selectorname):
+                    dbg("Too old. Need new key")
+                    self.cmd_create(domainname=domainname)
 
     def cmd_add_missing(self):
         """--add-missing command
