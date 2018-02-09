@@ -24,10 +24,19 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 from __future__ import print_function
 
 import argparse
-import ConfigParser
+try:
+    import ConfigParser
+except ImportError:
+    # noinspection PyPep8Naming
+    import configparser as ConfigParser
 import datetime
 import hashlib
 import inspect
+try:
+    # noinspection PyShadowingBuiltins
+    import io.open as open
+except ImportError:
+    pass
 import os
 import random
 import re
@@ -91,7 +100,7 @@ class CfgFile(object):
     :param cfgfile: Parse a configuration file
     """
     def __init__(self, cfgfile):
-        self.__config = ConfigParser.ConfigParser()
+        self.__config = ConfigParser.RawConfigParser()
 
         self.globals = dict()
         self.ldap = dict()
@@ -980,6 +989,9 @@ class Manager(object):
                 try:
                     dn = ldap_object[0]
                     domainname = ldap_object[1][cf.ldap['domain']][0]
+                    if sys.version_info >= (3, ):
+                        # noinspection PyArgumentList
+                        domainname = str(domainname, encoding="utf-8")
                 except KeyError:
                     error = True
 
@@ -1000,7 +1012,8 @@ class Manager(object):
                             pass
 
                         if 'DKIMActive' in ldap_object2[1] and \
-                                ldap_object2[1]['DKIMActive'][0] == "TRUE":
+                                ldap_object2[1]['DKIMActive'][0] in \
+                                ("TRUE", b"TRUE"):
                             status = " (" + _c("active", "red") + ")"
                         else:
                             status = ""
@@ -1008,6 +1021,10 @@ class Manager(object):
                             ldap_object2[1]['createTimestamp'][0])
 
                         for dkimselector in iter(dkimselectors):
+                            if sys.version_info >= (3,):
+                                # noinspection PyArgumentList
+                                dkimselector = str(dkimselector,
+                                                   encoding="utf-8")
                             print("{0} DKIMSelector: ".format(
                                 utc2local(ct_dt)) +
                                   _c("{0}".format(dkimselector), "magenta") +
@@ -1552,7 +1569,7 @@ class Manager(object):
     def cmd_rotate(self):
         """--rotate command
 
-        Scan Some or all domains in LDAP for valid DKIM keys that should be
+        Scan some or all domains in LDAP for valid DKIM keys that should be
         switched to active state. It checks for the age of the DKIM objects
         as well as it does a DNS check, before swithing a DKIM key. If more
         than one possible DKIM object was found in LDAP, it iterates from the
@@ -1914,7 +1931,7 @@ class Manager(object):
         :param ldaptime: CreateTimestamp or ModfiyTimestamp LDAP string
         :return: datetime object
         """
-        assert isinstance(ldaptime, str)
+        assert isinstance(ldaptime, str) or isinstance(ldaptime, bytes)
 
         ct_year = int(ldaptime[:4])
         ct_month = int(ldaptime[4:6])
