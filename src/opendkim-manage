@@ -742,12 +742,6 @@ class SelectorParseError(IndexError):
     pass
 
 
-class InvalidSelectorname(Exception):
-    """Exception that is raised, if the created selectorname is invalid
-    """
-    pass
-
-
 class Selector(object):
     """Generate a selector from config file param 'selectorname'
 
@@ -826,6 +820,12 @@ class Selector(object):
     name = property(fget=get_name)
 
 
+class InvalidSelectorname(Exception):
+    """Exception that is raised, if the created selectorname is invalid
+    """
+    pass
+
+
 class InvalidTSIGKeyFile(Exception):
     """Raise an exception, if the content of the TSIG key file is wrong
     """
@@ -900,12 +900,8 @@ class DNS(object):
         :param arg: A TXT string that must be split into chunks
         :return: Normalized string suiteable for DNS updates
         """
-        i = 0
-        t = list()
-        while i <= len(arg):
-            t.append('"' + arg[i:i + 255] + '"')
-            i += 255
-        return ' '.join(t)
+        return " ".join(
+            ['"' + arg[i:i+255] + '"' for i in range(0, len(arg), 255)])
 
     @staticmethod
     def calculated_rname(selector, domain):
@@ -1522,11 +1518,10 @@ class Manager(object):
                             crt = "".join(rdata.strings)
                             crt = crt[crt.find('p=')+2:]
                             # Reconstruct public certificate
-                            n = 64
                             crt = (crt_begin +
                                    "\n".join(
-                                       [crt[i:i+n] for i in xrange(
-                                           0, len(crt), n)]) +
+                                       [crt[i:i+64] for i in range(
+                                           0, len(crt), 64)]) +
                                    '\n' +
                                    crt_end)
                             # Create a new public cert from the RSA private key
