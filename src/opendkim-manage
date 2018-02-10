@@ -545,7 +545,7 @@ class LDAP(object):
                             self.__ldapcfg['bindpw']
                         )
                         dbg("SASL/CRAM-MD5")
-                if self.__ldapcfg['authz_id']:
+                else:
                     if self.__ldapcfg['saslmech'].lower() == "external":
                         self.__auth_token = ldap.sasl.external(
                             self.__ldapcfg['authz_id'])
