@@ -1335,27 +1335,35 @@ class Manager(object):
         if not negative or cmp_age is None:
             dbg("positive age")
             if datetime.datetime.utcnow() - dt > ct:
-                dbg("{0}: Key is older".format(selectorname))
-                verbose(_c("{0}".format(selectorname), "magenta") +
-                        ": Key is older")
+                dbg("DN: {0}: Key is older".format(dn))
+                verbose("DN: " + _c("{0}".format(dn), "yellow") +
+                        " ({0}): Key is older".format(
+                            self.convert_ldaptime_to_datetime(
+                                create_timestamp)))
                 return True
             else:
-                dbg("{0}: Key is younger".format(selectorname))
-                verbose(_c("{0}".format(selectorname), "magenta") +
-                        ": Key is younger")
+                dbg("DN: {0}: Key is younger".format(dn))
+                verbose("DN: " + _c("{0}".format(dn), "yellow") +
+                        " ({0}): Key is younger".format(
+                            self.convert_ldaptime_to_datetime(
+                                create_timestamp)))
                 return False
 
         if negative:
             dbg("negative age")
             if datetime.datetime.utcnow() - dt < ct:
-                dbg("{0}: Key is younger".format(selectorname))
-                verbose(_c("{0}".format(selectorname), "magenta") +
-                        ": Key is younger")
+                dbg("DN: {0}: Key is younger".format(dn))
+                verbose("DN: " + _c("{0}".format(dn), "yellow") +
+                        " ({0}): Key is younger".format(
+                            self.convert_ldaptime_to_datetime(
+                                create_timestamp)))
                 return True
             else:
-                dbg("{0}: Key is older".format(selectorname))
-                verbose(_c("{0}".format(selectorname), "magenta") +
-                        ": Key is older")
+                dbg("DN: {0}: Key is older".format(dn))
+                verbose("DN: " + _c("{0}".format(dn), "yellow") +
+                        " ({0}): Key is older".format(
+                            self.convert_ldaptime_to_datetime(
+                                create_timestamp)))
                 return False
 
     def cmd_active(self, selectorname=None):
