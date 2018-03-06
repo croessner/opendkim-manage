@@ -1337,16 +1337,16 @@ class Manager(object):
             if datetime.datetime.utcnow() - dt > ct:
                 dbg("DN: {0}: Key is older".format(dn))
                 verbose("DN: " + _c("{0}".format(dn), "yellow") +
-                        " ({0}): Key is older".format(
+                        " ({0}): Key is older than {1} days".format(
                             self.convert_ldaptime_to_datetime(
-                                create_timestamp)))
+                                create_timestamp), dt.days))
                 return True
             else:
                 dbg("DN: {0}: Key is younger".format(dn))
                 verbose("DN: " + _c("{0}".format(dn), "yellow") +
-                        " ({0}): Key is younger".format(
+                        " ({0}): Key is younger than {1} days".format(
                             self.convert_ldaptime_to_datetime(
-                                create_timestamp)))
+                                create_timestamp), dt.days))
                 return False
 
         if negative:
@@ -1354,16 +1354,16 @@ class Manager(object):
             if datetime.datetime.utcnow() - dt < ct:
                 dbg("DN: {0}: Key is younger".format(dn))
                 verbose("DN: " + _c("{0}".format(dn), "yellow") +
-                        " ({0}): Key is younger".format(
+                        " ({0}): Key is younger than {1} days".format(
                             self.convert_ldaptime_to_datetime(
-                                create_timestamp)))
+                                create_timestamp), dt.days))
                 return True
             else:
                 dbg("DN: {0}: Key is older".format(dn))
                 verbose("DN: " + _c("{0}".format(dn), "yellow") +
-                        " ({0}): Key is older".format(
+                        " ({0}): Key is older than {1} days".format(
                             self.convert_ldaptime_to_datetime(
-                                create_timestamp)))
+                                create_timestamp), dt.days))
                 return False
 
     def cmd_active(self, selectorname=None):
