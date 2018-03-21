@@ -1331,39 +1331,49 @@ class Manager(object):
             dt = datetime.timedelta(days=cmp_age)
         dbg("dt={0}".format(dt))
 
+        cmp_date = datetime.datetime.utcnow() - dt
+
         # Check, if key is more than X days old
         if not negative or cmp_age is None:
             dbg("positive age")
-            if datetime.datetime.utcnow() - dt > ct:
+            if cmp_date > ct:
+                delta = cmp_date - ct
                 dbg("DN: {0}: Key is older".format(dn))
                 verbose("DN: " + _c("{0}".format(dn), "yellow") +
-                        " ({0}): Key is older than {1} days".format(
+                        " ({0}): Key is older than {1} days, delta is"
+                        " {2} days".format(
                             self.convert_ldaptime_to_datetime(
-                                create_timestamp), dt.days))
+                                create_timestamp), dt.days, delta.days))
                 return True
             else:
+                delta = ct - cmp_date
                 dbg("DN: {0}: Key is younger".format(dn))
                 verbose("DN: " + _c("{0}".format(dn), "yellow") +
-                        " ({0}): Key is younger than {1} days".format(
+                        " ({0}): Key is younger than {1} days, delta is"
+                        " {2} days".format(
                             self.convert_ldaptime_to_datetime(
-                                create_timestamp), dt.days))
+                                create_timestamp), dt.days, delta.days))
                 return False
 
         if negative:
             dbg("negative age")
-            if datetime.datetime.utcnow() - dt < ct:
+            if cmp_date < ct:
+                delta = ct - cmp_date
                 dbg("DN: {0}: Key is younger".format(dn))
                 verbose("DN: " + _c("{0}".format(dn), "yellow") +
-                        " ({0}): Key is younger than {1} days".format(
+                        " ({0}): Key is younger than {1} days, delta is"
+                        " {2} days".format(
                             self.convert_ldaptime_to_datetime(
-                                create_timestamp), dt.days))
+                                create_timestamp), dt.days, delta.days))
                 return True
             else:
+                delta = cmp_date - ct
                 dbg("DN: {0}: Key is older".format(dn))
                 verbose("DN: " + _c("{0}".format(dn), "yellow") +
-                        " ({0}): Key is older than {1} days".format(
+                        " ({0}): Key is older than {1} days, delta is"
+                        " {2} days".format(
                             self.convert_ldaptime_to_datetime(
-                                create_timestamp), dt.days))
+                                create_timestamp), dt.days, delta.days))
                 return False
 
     def cmd_active(self, selectorname=None):
