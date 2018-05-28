@@ -1729,6 +1729,9 @@ class Manager(object):
                 # No other keys than the active key is present
                 dbg("Empty dts. active_selectorname={0}".format(
                     active_selectorname))
+                if not active_selectorname:
+                    dbg("No active key found")
+                    return
                 if self._expire_after(selectorname=active_selectorname):
                     dbg("Too old. Need new key")
                     self.cmd_create(domainname=domainname)
