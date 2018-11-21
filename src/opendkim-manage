@@ -64,7 +64,7 @@ __author__ = "Christian Rößner"
 __copyright__ = "Copyright (c) 2018 by R.N.S."
 __credits__ = ["Andreas Schulze", "Patrick Ben Koetter"]
 __license__ = "GPL"
-__version__ = "0.1"
+__version__ = "0.1.1"
 __maintainer__ = "Christian Rößner"
 __email__ = "c@roessner.co"
 __status__ = "Development"
@@ -1523,7 +1523,7 @@ class Manager(object):
                     domainname = ldap_object[1]['DKIMDomain'][0]
                     priv_key = ldap_object[1]['DKIMKey'][0]
 
-                dns_query = "{0}._domainkey.{1}".format(selector, domainname)
+                dns_query = "{0}._domainkey.{1}.".format(selector, domainname)
 
                 if cmd.config.testkey:
                     print("Query " + _c("{0}".format(dns_query), "yellow"))
@@ -1560,6 +1560,8 @@ class Manager(object):
                         print("TXT: not present")
                 except dns.resolver.NoNameservers:
                     print(_c("WARN: No nameservers could be reached", "cyan"))
+                except dns.resolver.TimeOut:
+                    print(_c("WARN: DNS timeout happened", "cyan"))
 
             else:
                 print(_c("WARN: DKIMSelector '{0}' does not exist".format(
