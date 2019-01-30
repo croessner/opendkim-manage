@@ -64,7 +64,7 @@ __author__ = "Christian Rößner"
 __copyright__ = "Copyright (c) 2018 by R.N.S."
 __credits__ = ["Andreas Schulze", "Patrick Ben Koetter"]
 __license__ = "GPL"
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __maintainer__ = "Christian Rößner"
 __email__ = "c@roessner.co"
 __status__ = "Development"
@@ -1524,7 +1524,7 @@ class Manager(object):
                     domainname = ldap_object[1]['DKIMDomain'][0]
                     priv_key = ldap_object[1]['DKIMKey'][0]
 
-                dns_query = "{0}._domainkey.{1}".format(selector, domainname)
+                dns_query = "{0}._domainkey.{1}.".format(selector, domainname)
 
                 dbg(dns_query)
                 if cmd.config.testkey:
@@ -1566,6 +1566,8 @@ class Manager(object):
                              dns_query), "red"))
                 except dns.resolver.NoNameservers:
                     print(_c("WARN: No nameservers could be reached", "cyan"))
+		except dns.resolver.TimeOut:
+		    print(_c("WARN: DNS timeout happened", "cyan"))
 
             else:
                 print(_c("WARN: DKIMSelector '{0}' does not exist".format(
@@ -1650,7 +1652,6 @@ class Manager(object):
                         if dts[i][2] > active_dt:
                             dbg("is greater!")
                             self.cmd_active(selectorname=dts[i][1])
-                            dbg("breaking loop")
                             break
                         else:
                             dbg("Selector '{0}' is younger than "
@@ -1739,6 +1740,9 @@ class Manager(object):
                 # No other keys than the active key is present
                 dbg("Empty dts. active_selectorname={0}".format(
                     active_selectorname))
+		if not active_selectorname:
+		    dbg("No active key found")
+		    return
                 if self._expire_after(selectorname=active_selectorname):
                     dbg("Too old. Need new key")
                     self.cmd_create(domainname=domainname)
