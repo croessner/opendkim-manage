@@ -64,7 +64,7 @@ __author__ = "Christian Rößner"
 __copyright__ = "Copyright (c) 2018 by R.N.S."
 __credits__ = ["Andreas Schulze", "Patrick Ben Koetter"]
 __license__ = "GPL"
-__version__ = "0.1"
+__version__ = "0.1.2"
 __maintainer__ = "Christian Rößner"
 __email__ = "c@roessner.co"
 __status__ = "Development"
@@ -1413,6 +1413,7 @@ class Manager(object):
             sys.exit(os.EX_SOFTWARE)
 
         result = self.cmd_testkey(selectorlist=[selectorname])
+        dbg("Result cmd_testkey: {0}".format(result))
         if result[selectorname] or cmd.config.force_active:
             ldap_object = list_of_results[0]
             dn = ldap_object[0]
@@ -1523,12 +1524,14 @@ class Manager(object):
                     domainname = ldap_object[1]['DKIMDomain'][0]
                     priv_key = ldap_object[1]['DKIMKey'][0]
 
-                dns_query = "{0}._domainkey.{1}".format(selector, domainname)
+                dns_query = "{0}._domainkey.{1}.".format(selector, domainname)
 
+                dbg(dns_query)
                 if cmd.config.testkey:
                     print("Query " + _c("{0}".format(dns_query), "yellow"))
                 try:
                     answers = dns.resolver.query(dns_query, "TXT")
+                    dbg(answers)
                     for rdata in answers:
                         if not result[selector]:
                             crt_begin = "-----BEGIN PUBLIC KEY-----\n"
@@ -1556,10 +1559,15 @@ class Manager(object):
                         if cmd.config.testkey:
                             print("TXT: {0}".format("".join(rdata.strings)))
                 except dns.resolver.NXDOMAIN:
-                    if cmd.config.testkey:
-                        print("TXT: not present")
+                    print(_c("TXT: not present (yet?):", "cyan"),
+                          _c(dns_query, "blue"))
+                except dns.resolver.NoAnswer:
+                    print(_c("WARN: No answer from DNS server for: {0}".format(
+                             dns_query), "red"))
                 except dns.resolver.NoNameservers:
                     print(_c("WARN: No nameservers could be reached", "cyan"))
+		except dns.resolver.TimeOut:
+		    print(_c("WARN: DNS timeout happened", "cyan"))
 
             else:
                 print(_c("WARN: DKIMSelector '{0}' does not exist".format(
@@ -1639,7 +1647,10 @@ class Manager(object):
                         dbg("Checking selector '{0}'".format(
                             selectorname))
                         # Check if the current key is newer than the active key
+                        dbg("Checking dts[{0}][2]: {1} > {2}".format(
+                            i, dts[i][2], active_dt))
                         if dts[i][2] > active_dt:
+                            dbg("is greater!")
                             self.cmd_active(selectorname=dts[i][1])
                             break
                         else:
@@ -1729,9 +1740,9 @@ class Manager(object):
                 # No other keys than the active key is present
                 dbg("Empty dts. active_selectorname={0}".format(
                     active_selectorname))
-                if not active_selectorname:
-                    dbg("No active key found")
-                    return
+		if not active_selectorname:
+		    dbg("No active key found")
+		    return
                 if self._expire_after(selectorname=active_selectorname):
                     dbg("Too old. Need new key")
                     self.cmd_create(domainname=domainname)
@@ -1838,9 +1849,13 @@ class Manager(object):
                     selectorname,
                     self.convert_ldaptime_to_datetime(create_timestamp)
                 ))
+                dbg("Added {0} to dts".format(selectorname))
 
             if active_dt:
+                dbg("Checking for old keys")
                 for selectorname, dt in iter(dts):
+                    dbg("selectorname={0} dt={1} active_dt={2}".format(
+                        selectorname, dt, active_dt))
                     if dt < active_dt:
                         dbg("Selector {0} is older than "
                             "active key".format(selectorname))
@@ -1848,6 +1863,7 @@ class Manager(object):
                                 _c("{0}".format(selectorname), "magenta") + "'")
                         self.cmd_delete(selectorname=selectorname)
             else:
+                dbg("No active keys found")
                 # If no selector is currently active, we activate the newest
                 if len(dts) > 0:
                     dts = sorted(dts, key=itemgetter(1), reverse=True)
@@ -1869,6 +1885,9 @@ class Manager(object):
             assert isinstance(selectorname, str)
 
         dl = GlobalCfg.expire_after
+
+        if not selectorname:
+            return False
 
         if self.cmd_age(days=dl, selectorname=selectorname):
             dbg("Key expired")
