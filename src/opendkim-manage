@@ -64,7 +64,7 @@ __author__ = "Christian Rößner"
 __copyright__ = "Copyright (c) 2018 by R.N.S."
 __credits__ = ["Andreas Schulze", "Patrick Ben Koetter"]
 __license__ = "GPL"
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 __maintainer__ = "Christian Rößner"
 __email__ = "c@roessner.co"
 __status__ = "Development"
@@ -1566,8 +1566,8 @@ class Manager(object):
                              dns_query), "red"))
                 except dns.resolver.NoNameservers:
                     print(_c("WARN: No nameservers could be reached", "cyan"))
-		except dns.resolver.TimeOut:
-		    print(_c("WARN: DNS timeout happened", "cyan"))
+                except dns.resolver.TimeOut:
+                    print(_c("WARN: DNS timeout happened", "cyan"))
 
             else:
                 print(_c("WARN: DKIMSelector '{0}' does not exist".format(
@@ -1740,9 +1740,9 @@ class Manager(object):
                 # No other keys than the active key is present
                 dbg("Empty dts. active_selectorname={0}".format(
                     active_selectorname))
-		if not active_selectorname:
-		    dbg("No active key found")
-		    return
+                if not active_selectorname:
+                    dbg("No active key found")
+                    return
                 if self._expire_after(selectorname=active_selectorname):
                     dbg("Too old. Need new key")
                     self.cmd_create(domainname=domainname)
