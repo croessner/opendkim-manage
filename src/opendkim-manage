@@ -598,7 +598,7 @@ class LDAP(object):
         :param search_filter: Custom search filter for LDAP
         :param base: Custom LDAP search base with sub scope
         :param attrs: List of custom LDAP result attributes
-        :param search_scope: pecifies how broad the search context is
+        :param search_scope: specifies how broad the search context is
         :return: Return a result list
         """
         if domain:
