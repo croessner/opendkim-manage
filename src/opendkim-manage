@@ -1222,11 +1222,11 @@ class Manager(object):
 
             # not with OpenLDAP, but modifyTimestamp may be unset
             # see https://tools.ietf.org/html/rfc2252#section-5.1.2
-            # still failing in the unlikely moment createTimestamp is also not present
-            try:
+            # assuming, createTimestamp is always present
+            if "modifyTimestamp" in ldap_object[1]:
                 modify_timestamp = self.convert_ldaptime_to_datetime(
                     ldap_object[1]['modifyTimestamp'][0])
-            except Exception:
+            else:
                 modify_timestamp = self.convert_ldaptime_to_datetime(
                     ldap_object[1]['createTimestamp'][0])
 
