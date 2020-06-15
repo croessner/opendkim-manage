@@ -1208,7 +1208,7 @@ class Manager(object):
                 search_filter="(&(objectClass=DKIM)(DKIMSelector={0}))".format(
                     selector),
                 attrs=['DKIMSelector', 'DKIMDomain', 'DKIMActive',
-                       'modifyTimestamp'])
+                       'modifyTimestamp', 'createTimestamp'])
             if len(list_of_results) == 0:
                 print(_c("WARN: Selector '{0}' does not exist".format(
                     selector), "cyan"), file=sys.stderr)
@@ -1219,8 +1219,17 @@ class Manager(object):
             dn = ldap_object[0]
             # Get the modifyTimestamp attribute. If an object was rotated,
             # its timestamp was changed. We compare this to delete-delay.
-            modify_timestamp = self.convert_ldaptime_to_datetime(
-                ldap_object[1]['modifyTimestamp'][0])
+
+            # not with OpenLDAP, but modifyTimestamp may be unset
+            # see https://tools.ietf.org/html/rfc2252#section-5.1.2
+            # assuming, createTimestamp is always present
+            if "modifyTimestamp" in ldap_object[1]:
+                modify_timestamp = self.convert_ldaptime_to_datetime(
+                    ldap_object[1]['modifyTimestamp'][0])
+            else:
+                modify_timestamp = self.convert_ldaptime_to_datetime(
+                    ldap_object[1]['createTimestamp'][0])
+
             time_delta = datetime.timedelta(days=GlobalCfg.delete_delay)
 
             if not cmd.config.force_delete:
