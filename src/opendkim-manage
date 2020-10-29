@@ -591,7 +591,8 @@ class LDAP(object):
 
         self.connected = True
 
-    def search(self, domain=None, search_filter=None, base=None, attrs=None, search_scope=ldap.SCOPE_SUBTREE):
+    def search(self, domain=None, search_filter=None, base=None, attrs=None,
+               search_scope=ldap.SCOPE_SUBTREE):
         """Common LDAP search
 
         :param domain: Searches the default filter for this domain
@@ -993,8 +994,9 @@ class Manager(object):
                     list_of_results2 = lh.search(
                         search_filter="(objectClass=DKIM)",
                         base=dn,
-                        attrs=['DKIMSelector', 'DKIMActive', 'createTimestamp'],
-			search_scope=ldap.SCOPE_ONELEVEL)
+                        attrs=['DKIMSelector', 'DKIMActive',
+                               'createTimestamp'],
+                        search_scope=ldap.SCOPE_ONELEVEL)
                     for ldap_object2 in iter(list_of_results2):
                         try:
                             dkimselectors = ldap_object2[1]['DKIMSelector']

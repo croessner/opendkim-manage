@@ -1,0 +1,5 @@
+cryptography
+dnspython~=2.0.0
+python-ldap~=3.3.1
+colorama~=0.4.3
+setuptools~=50.3.0
